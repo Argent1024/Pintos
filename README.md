@@ -1,4 +1,3 @@
-# os
+# pintos
 
-Pintos os
-Proj from os class
+testing
