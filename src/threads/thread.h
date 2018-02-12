@@ -102,6 +102,21 @@ struct thread {
   unsigned magic; /* Detects stack overflow. */
 };
 
+/* sleeping thread */
+struct sleepingThread {
+  // If ticks reach this num, that thread should be wake up
+  struct thread *thread;
+  int64_t ticksToWake;
+  // Be used in the list of sleeping threads
+  struct list_elem elem;
+};
+
+/* List of all sleeping thread.
+   When a thread_sleep() is called, push the thread into this,
+   pop when timer interruput happens.
+   TODO: change to queue maybe */
+static struct list thread_bed;
+
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
@@ -138,4 +153,7 @@ void thread_set_nice(int);
 int thread_get_recent_cpu(void);
 int thread_get_load_avg(void);
 
+// stupid name reference
+bool less_sleeping_thread(const struct list_elem *a, const struct list_elem *b,
+                          void *aux);
 #endif /* threads/thread.h */

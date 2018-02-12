@@ -75,11 +75,38 @@ int64_t timer_elapsed(int64_t then) { return timer_ticks() - then; }
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
 void timer_sleep(int64_t ticks) {
-  int64_t start = timer_ticks();
+  /*int64_t start = timer_ticks();
 
   ASSERT(intr_get_level() == INTR_ON);
-  while (timer_elapsed(start) < ticks) thread_yield();
+  while (timer_elapsed(start) < ticks) thread_yield();*/
+
+  // ignore stupid input
+  if (ticks <= 0) {
+    return;
+  }
+
+  // go to bed
+  // TODO: Interrupts on?off, and something to do with sych
+  // block the thread
+  thread_block();
+
+  // put stuff in sleeping_thread list
+  struct list_elem elem = {NULL, NULL};
+
+  struct sleepingThread bed;
+  int64_t start = timer_ticks();
+  bed.ticksToWake = start + ticks;
+  bed.thread = thread_current();
+  bed.elem = elem;
+
+  // TODO stupid but fancy way to get the number....
+  list_insert_ordered(&thread_bed, &bed.elem, less_sleeping_thread,
+                      (int)&bed.ticksToWake - (int)&bed.elem);
 }
+
+/* Wake up threads that are sleeping, should only be called in time interrupt
+ * handler*/
+void wake_up(struct thread* t) { thread_unblock(t); }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
    turned on. */
@@ -126,9 +153,23 @@ void timer_print_stats(void) {
 }
 
 /* Timer interrupt handler. */
-static void timer_interrupt(struct intr_frame *args UNUSED) {
+static void timer_interrupt(struct intr_frame* args UNUSED) {
   ticks++;
   thread_tick();
+
+  // wake up threads in bed
+  struct list_elem* e;
+  struct sleepingThread* bed;
+  for (e = list_begin(&thread_bed); e != list_end(&thread_bed);
+       e = list_next(e)) {
+    bed = list_entry(e, struct sleepingThread, elem);
+    if (bed->ticksToWake <= ticks) {
+      list_remove(e);
+      wake_up(bed->thread);
+    } else {
+      break;
+    }
+  }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

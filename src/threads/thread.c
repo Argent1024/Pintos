@@ -89,6 +89,7 @@ void thread_init(void) {
   lock_init(&tid_lock);
   list_init(&ready_list);
   list_init(&all_list);
+  list_init(&thread_bed);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread();
@@ -507,3 +508,12 @@ static tid_t allocate_tid(void) {
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof(struct thread, stack);
+
+bool less_sleeping_thread(const struct list_elem *a, const struct list_elem *b,
+                          void *aux) {
+  int t = (int)aux;
+  int64_t num1, num2;
+  num1 = *(int64_t *)(a + t);
+  num2 = *(int64_t *)(b + t);
+  return num1 < num2;
+}
