@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "palloc.h": "c",
+        "array": "c",
+        "thread": "c"
+    }
+}
