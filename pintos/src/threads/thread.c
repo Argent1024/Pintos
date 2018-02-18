@@ -408,6 +408,7 @@ static void init_thread(struct thread *t, const char *name, int priority) {
   t->stack = (uint8_t *)t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  t->ticksToWake = 0;
 
   old_level = intr_disable();
   list_push_back(&all_list, &t->allelem);
@@ -523,7 +524,7 @@ bool less_sleeping_thread(const struct list_elem *a, const struct list_elem *b,
   return A->ticksToWake < B->ticksToWake;
 }
 
-void thread_goto_sleep(int64_t ticks) {
+void thread_goto_sleep(int64_t ticks, int64_t start) {
   if (ticks <= 0) {
     return;
   }
@@ -532,11 +533,10 @@ void thread_goto_sleep(int64_t ticks) {
   // go to bed -- take the thread off ready list
   struct thread *t = thread_current();
   // put stuff in sleeping_thread list
-  int64_t start = timer_ticks();
+
   t->ticksToWake = start + ticks;
 
   // will crash if put this line after schedule()????
-  printf("%d\n", list_size(&thread_bed));
   t->status = THREAD_BLOCKED;
   if (list_empty(&thread_bed)) {
     enum intr_level old_level = intr_disable();
@@ -552,7 +552,7 @@ void thread_goto_sleep(int64_t ticks) {
   }
 }
 
-void wake_up_thread() {
+void wake_up_thread(int64_t) {
   struct list_elem *e;
   struct thread *t;
 
@@ -563,11 +563,11 @@ void wake_up_thread() {
   for (e = list_begin(&thread_bed); e != list_end(&thread_bed);
        e = list_next(e)) {
     t = list_entry(e, struct thread, bedelem);
-    if (t->ticksToWake <= timer_ticks()) {
+    if (t->ticksToWake <= ticks) {
+      enum intr_level old_level = intr_disable();
       list_remove(e);
       // put thread into ready queue again
       t->status = THREAD_READY;
-      enum intr_level old_level = intr_disable();
       list_push_back(&ready_list, &t->elem);
       intr_set_level(old_level);
     } else {

@@ -144,8 +144,8 @@ int thread_get_load_avg(void);
 bool less_sleeping_thread(const struct list_elem *a, const struct list_elem *b,
                           void *aux);
 
-void wake_up_thread();
+void wake_up_thread(int64_t ticks);
 
-void thread_goto_sleep(int64_t);
+void thread_goto_sleep(int64_t ticks, int64_t start);
 
 #endif /* threads/thread.h */
