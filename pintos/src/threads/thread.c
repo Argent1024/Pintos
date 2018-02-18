@@ -227,7 +227,8 @@ void thread_unblock(struct thread *t) {
 
   old_level = intr_disable();
   ASSERT(t->status == THREAD_BLOCKED);
-  list_push_back(&ready_list, &t->elem);
+  // list_push_back(&ready_list, &t->elem);
+  list_insert_ordered(&ready_list, &t->elem, less_priority_thread, NULL);
   t->status = THREAD_READY;
   intr_set_level(old_level);
 }
@@ -283,7 +284,9 @@ void thread_yield(void) {
   ASSERT(!intr_context());
 
   old_level = intr_disable();
-  if (cur != idle_thread) list_push_back(&ready_list, &cur->elem);
+  if (cur != idle_thread)
+    list_insert_ordered(&ready_list, &cur->elem, less_priority_thread, NULL);
+  // list_push_back(&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule();
   intr_set_level(old_level);
@@ -304,7 +307,25 @@ void thread_foreach(thread_action_func *func, void *aux) {
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void thread_set_priority(int new_priority) {
-  thread_current()->priority = new_priority;
+  struct thread *t = thread_current();
+
+  if (t->status == THREAD_RUNNING) {
+    /* If inside ready_list
+    take this thread out and put back in order*/
+    if (t->priority > new_priority) {
+      // stop running decreasing priority
+      t->priority = new_priority;
+      thread_yield();
+    } else {
+      // continue running when raising the priority
+      t->priority = new_priority;
+      return;
+    }
+  } else {
+    // the thread is not running, just set the priority
+    t->priority = new_priority;
+    return;
+  }
 }
 
 /* Returns the current thread's priority. */
@@ -517,8 +538,22 @@ static tid_t allocate_tid(void) {
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof(struct thread, stack);
 
+/* Less function for list_insert_ordered
+   Used to compare two thread's priority in ready_list*/
+bool less_priority_thread(const struct list_elem *a, const struct list_elem *b,
+                          void *aux UNUSED) {
+  struct thread *A = list_entry(a, struct thread, elem);
+  struct thread *B = list_entry(b, struct thread, elem);
+  // higher priority should be put in the front
+  // TODO check when equal the first come first run
+  // And why A->priority >= B->priority will make error..???
+  return A->priority > B->priority;
+}
+
+/* Less function for list_insert_ordered
+    Used to compare two sleeping thread in thread_bed*/
 bool less_sleeping_thread(const struct list_elem *a, const struct list_elem *b,
-                          void *aux) {
+                          void *aux UNUSED) {
   struct thread *A = list_entry(a, struct thread, bedelem);
   struct thread *B = list_entry(b, struct thread, bedelem);
   return A->ticksToWake < B->ticksToWake;
@@ -533,7 +568,6 @@ void thread_goto_sleep(int64_t ticks, int64_t start) {
   // go to bed -- take the thread off ready list
   struct thread *t = thread_current();
   // put stuff in sleeping_thread list
-
   t->ticksToWake = start + ticks;
 
   // will crash if put this line after schedule()????
@@ -552,7 +586,7 @@ void thread_goto_sleep(int64_t ticks, int64_t start) {
   }
 }
 
-void wake_up_thread(int64_t) {
+void wake_up_thread(int64_t ticks) {
   struct list_elem *e;
   struct thread *t;
 
@@ -568,7 +602,7 @@ void wake_up_thread(int64_t) {
       list_remove(e);
       // put thread into ready queue again
       t->status = THREAD_READY;
-      list_push_back(&ready_list, &t->elem);
+      list_insert_ordered(&ready_list, &t->elem, less_priority_thread, NULL);
       intr_set_level(old_level);
     } else {
       break;
