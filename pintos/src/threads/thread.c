@@ -230,6 +230,12 @@ void thread_unblock(struct thread *t) {
   // list_push_back(&ready_list, &t->elem);
   list_insert_ordered(&ready_list, &t->elem, less_priority_thread, NULL);
   t->status = THREAD_READY;
+  struct thread *cur = thread_current();
+  // maybe stupid
+  if (t->priority > cur->priority) {
+    cur->status = THREAD_READY;
+    schedule();
+  }
   intr_set_level(old_level);
 }
 
@@ -608,4 +614,17 @@ void wake_up_thread(int64_t ticks) {
       break;
     }
   }
+}
+
+void denote_priority(struct thread *t) {
+  // assert when something weird happens....
+  ASSERT(thread_current() == t);
+
+  // save origin priority
+  t->true_priority = t->priority;
+  t->priority = thread_get_priority();
+
+  // insert right before current thread
+
+  list_insert()
 }
