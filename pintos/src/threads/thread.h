@@ -154,4 +154,7 @@ void wake_up_thread(int64_t ticks);
 
 void thread_goto_sleep(int64_t ticks, int64_t start);
 
+// helper method used in synch, current thread raise t's priority
+void denote_priority(struct thread *);
+
 #endif /* threads/thread.h */

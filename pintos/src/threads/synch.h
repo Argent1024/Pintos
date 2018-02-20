@@ -6,9 +6,7 @@
 
 /* A counting semaphore. */
 struct semaphore {
-  unsigned value; /* Current value. */
-
-  // TODO: order the waiters by priority
+  unsigned value;      /* Current value. */
   struct list waiters; /* List of waiting threads. */
 
   int priority; /* the highest priority of the thread taking the semaphore*/

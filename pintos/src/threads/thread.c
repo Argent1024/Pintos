@@ -195,6 +195,11 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
   /* Add to run queue. */
   thread_unblock(t);
 
+  // ???
+  if (t->priority > thread_get_priority()) {
+    thread_yield();
+  }
+
   return tid;
 }
 
@@ -232,10 +237,10 @@ void thread_unblock(struct thread *t) {
   t->status = THREAD_READY;
   struct thread *cur = thread_current();
   // maybe stupid
-  if (t->priority > cur->priority) {
+  /*if (t->priority > cur->priority) {
     cur->status = THREAD_READY;
     schedule();
-  }
+  }*/
   intr_set_level(old_level);
 }
 
@@ -617,14 +622,21 @@ void wake_up_thread(int64_t ticks) {
 }
 
 void denote_priority(struct thread *t) {
+  // should be called when interrupt off
+  ASSERT(intr_get_level() == INTR_OFF);
   // assert when something weird happens....
-  ASSERT(thread_current() == t);
+  struct thread *cur = thread_current();
+  ASSERT(cur != t);
 
-  // save origin priority
-  t->true_priority = t->priority;
-  t->priority = thread_get_priority();
+  if (t->priority > cur->priority) {
+    // don't need to denote
+    return;
+  }
 
+  // raise priority
+  t->priority = cur->priority;
+
+  list_remove(&t->elem);
   // insert right before current thread
-
-  list_insert()
+  list_insert(&cur->elem, &t->elem);
 }
