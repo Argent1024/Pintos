@@ -46,9 +46,6 @@ void sema_init(struct semaphore *sema, unsigned value) {
 
   sema->value = value;
   list_init(&sema->waiters);
-
-  sema->thread = NULL;
-  sema->priority = PRI_MIN;
 }
 
 /* Down or "P" operation on a semaphore.  Waits for SEMA's value

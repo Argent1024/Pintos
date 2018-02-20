@@ -235,12 +235,6 @@ void thread_unblock(struct thread *t) {
   // list_push_back(&ready_list, &t->elem);
   list_insert_ordered(&ready_list, &t->elem, less_priority_thread, NULL);
   t->status = THREAD_READY;
-  struct thread *cur = thread_current();
-  // maybe stupid
-  /*if (t->priority > cur->priority) {
-    cur->status = THREAD_READY;
-    schedule();
-  }*/
   intr_set_level(old_level);
 }
 
