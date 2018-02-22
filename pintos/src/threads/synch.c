@@ -63,7 +63,9 @@ void sema_down(struct semaphore *sema) {
 
   old_level = intr_disable();
   while (sema->value == 0) {
-    list_push_back(&sema->waiters, &thread_current()->elem);
+    // list_push_back(&sema->waiters, &thread_current()->elem);
+    list_insert_ordered(&sema->waiters, &thread_current()->elem,
+                        less_priority_thread, NULL);
     thread_block();
   }
   sema->value--;
@@ -175,7 +177,9 @@ void lock_acquire(struct lock *lock) {
   ASSERT(!intr_context());
   ASSERT(!lock_held_by_current_thread(lock));
 
+  denote_priority(lock->holder);
   sema_down(&lock->semaphore);
+  // got the lock, update information
   lock->holder = thread_current();
 }
 
@@ -192,7 +196,9 @@ bool lock_try_acquire(struct lock *lock) {
   ASSERT(!lock_held_by_current_thread(lock));
 
   success = sema_try_down(&lock->semaphore);
-  if (success) lock->holder = thread_current();
+  if (success) {
+    lock->holder = thread_current();
+  }
   return success;
 }
 
@@ -202,11 +208,19 @@ bool lock_try_acquire(struct lock *lock) {
    make sense to try to release a lock within an interrupt
    handler. */
 void lock_release(struct lock *lock) {
-  ASSERT(lock != NULL);
   ASSERT(lock_held_by_current_thread(lock));
+  ASSERT(lock != NULL);
 
   lock->holder = NULL;
   sema_up(&lock->semaphore);
+
+  // put true_priority back, yield if necessary
+  struct thread *cur = thread_current();
+  if (cur->priority > cur->true_priority) {
+    // the priority is donated by somethread else
+    cur->priority = cur->true_priority;
+    thread_yield();
+  }
 }
 
 /* Returns true if the current thread holds LOCK, false

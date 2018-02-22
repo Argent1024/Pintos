@@ -94,7 +94,8 @@ struct thread {
   struct list_elem elem; /* List element. */
 
   int true_priority; /* used by sych.c, the priority may be changed by other
-                        and this variable save the true priority*/
+                        and this variable save the true priority.
+                  value should only be set when thread_init andset_priority*/
 
   int64_t ticksToWake;      /* should be wake when ticks reach this number */
   struct list_elem bedelem; /* List element for thread bed*/

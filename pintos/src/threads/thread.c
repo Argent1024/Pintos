@@ -195,7 +195,7 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
   /* Add to run queue. */
   thread_unblock(t);
 
-  // ???
+  // yield if the one created has higher priority
   if (t->priority > thread_get_priority()) {
     thread_yield();
   }
@@ -313,24 +313,17 @@ void thread_foreach(thread_action_func *func, void *aux) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void thread_set_priority(int new_priority) {
   struct thread *t = thread_current();
-
-  if (t->status == THREAD_RUNNING) {
-    /* If inside ready_list
-    take this thread out and put back in order*/
-    if (t->priority > new_priority) {
-      // stop running decreasing priority
-      t->priority = new_priority;
-      thread_yield();
-    } else {
-      // continue running when raising the priority
-      t->priority = new_priority;
-      return;
-    }
+  int old_priority = t->priority;
+  // avoid set to low priority when having a lock
+  if (t->priority != t->true_priority) {
+    t->true_priority = new_priority;
   } else {
-    // the thread is not running, just set the priority
     t->priority = new_priority;
-    return;
+    t->true_priority = new_priority;
   }
+
+  if (t->status == THREAD_RUNNING && old_priority > new_priority)
+    thread_yield();
 }
 
 /* Returns the current thread's priority. */
@@ -433,6 +426,7 @@ static void init_thread(struct thread *t, const char *name, int priority) {
   strlcpy(t->name, name, sizeof t->name);
   t->stack = (uint8_t *)t + PGSIZE;
   t->priority = priority;
+  t->true_priority = priority;
   t->magic = THREAD_MAGIC;
   t->ticksToWake = 0;
 
@@ -616,21 +610,20 @@ void wake_up_thread(int64_t ticks) {
 }
 
 void denote_priority(struct thread *t) {
-  // should be called when interrupt off
-  ASSERT(intr_get_level() == INTR_OFF);
-  // assert when something weird happens....
   struct thread *cur = thread_current();
-  ASSERT(cur != t);
 
-  if (t->priority > cur->priority) {
-    // don't need to denote
+  // must denote when two's priority are equal to make sure
+  // t be executed before cur!!
+  if (t == NULL || cur->priority < t->priority) {
     return;
   }
 
-  // raise priority
   t->priority = cur->priority;
 
+  enum intr_level old_level = intr_disable();
+  /* remove t and insert it back into ready queue,
+  since current thread is at running state, t will be executed before cur*/
   list_remove(&t->elem);
-  // insert right before current thread
-  list_insert(&cur->elem, &t->elem);
+  list_insert_ordered(&ready_list, &t->elem, less_priority_thread, NULL);
+  intr_set_level(old_level);
 }
