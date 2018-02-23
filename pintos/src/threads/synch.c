@@ -161,6 +161,11 @@ void lock_init(struct lock *lock) {
   ASSERT(lock != NULL);
 
   lock->holder = NULL;
+  lock->holder_true_priority = -1;
+  lock->donater_priority = -1;
+  struct list_elem e = {NULL, NULL};
+  lock->elem = e;
+
   sema_init(&lock->semaphore, 1);
 }
 
@@ -177,10 +182,22 @@ void lock_acquire(struct lock *lock) {
   ASSERT(!intr_context());
   ASSERT(!lock_held_by_current_thread(lock));
 
-  denote_priority(lock->holder);
+  donate_priority(lock->holder);
+  if (lock->donater_priority < thread_get_priority()) {
+    lock->donater_priority = thread_get_priority();
+  }
   sema_down(&lock->semaphore);
   // got the lock, update information
   lock->holder = thread_current();
+
+  // init priority
+  lock->donater_priority = thread_get_priority();
+  lock->holder_true_priority = thread_get_priority();
+
+  // push self into holder's locks list
+  enum intr_level old_level = intr_disable();
+  list_push_back(&thread_current()->locks, &lock->elem);
+  intr_set_level(old_level);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -210,17 +227,10 @@ bool lock_try_acquire(struct lock *lock) {
 void lock_release(struct lock *lock) {
   ASSERT(lock_held_by_current_thread(lock));
   ASSERT(lock != NULL);
-
   lock->holder = NULL;
-  sema_up(&lock->semaphore);
 
-  // put true_priority back, yield if necessary
-  struct thread *cur = thread_current();
-  if (cur->priority > cur->true_priority) {
-    // the priority is donated by somethread else
-    cur->priority = cur->true_priority;
-    thread_yield();
-  }
+  sema_up(&lock->semaphore);
+  thread_lock_release(lock);
 }
 
 /* Returns true if the current thread holds LOCK, false

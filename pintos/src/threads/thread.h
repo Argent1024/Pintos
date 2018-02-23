@@ -91,15 +91,11 @@ struct thread {
   struct list_elem allelem;  /* List element for all threads list. */
 
   /* Shared between thread.c and synch.c. */
-  struct list_elem elem; /* List element. */
-
-  int true_priority; /* used by sych.c, the priority may be changed by other
-                        and this variable save the true priority.
-                  value should only be set when thread_init andset_priority*/
-
+  struct list_elem elem;    /* List element. */
   int64_t ticksToWake;      /* should be wake when ticks reach this number */
   struct list_elem bedelem; /* List element for thread bed*/
 
+  struct list locks; /* Locks this thread holding, used in set_priority*/
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
   uint32_t *pagedir; /* Page directory. */
@@ -156,6 +152,12 @@ void wake_up_thread(int64_t ticks);
 void thread_goto_sleep(int64_t ticks, int64_t start);
 
 // helper method used in synch, current thread raise t's priority
-void denote_priority(struct thread *);
+// return donated or not
+bool donate_priority(struct thread *);
+
+// helper method used in synch
+// change the priority of current thread if necessary
+// and remove the lock inside locks list
+void thread_lock_release(struct lock *);
 
 #endif /* threads/thread.h */

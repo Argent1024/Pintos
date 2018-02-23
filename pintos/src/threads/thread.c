@@ -314,12 +314,19 @@ void thread_foreach(thread_action_func *func, void *aux) {
 void thread_set_priority(int new_priority) {
   struct thread *t = thread_current();
   int old_priority = t->priority;
-  // avoid set to low priority when having a lock
-  if (t->priority != t->true_priority) {
-    t->true_priority = new_priority;
-  } else {
+  // 1 if the priority is donated
+  bool donate = 0;
+  // change lock->holder_true_priority
+  struct list_elem *e;
+  for (e = list_begin(&t->locks); e != list_end(&t->locks); e = list_next(e)) {
+    struct lock *temp = list_entry(e, struct lock, elem);
+    if (temp->holder_true_priority != old_priority) {
+      donate = 1;
+    }
+    temp->holder_true_priority = new_priority;
+  }
+  if (donate == 0) {
     t->priority = new_priority;
-    t->true_priority = new_priority;
   }
 
   if (t->status == THREAD_RUNNING && old_priority > new_priority)
@@ -426,9 +433,11 @@ static void init_thread(struct thread *t, const char *name, int priority) {
   strlcpy(t->name, name, sizeof t->name);
   t->stack = (uint8_t *)t + PGSIZE;
   t->priority = priority;
-  t->true_priority = priority;
   t->magic = THREAD_MAGIC;
   t->ticksToWake = 0;
+
+  // init locks list
+  list_init(&t->locks);
 
   old_level = intr_disable();
   list_push_back(&all_list, &t->allelem);
@@ -609,21 +618,53 @@ void wake_up_thread(int64_t ticks) {
   }
 }
 
-void denote_priority(struct thread *t) {
+bool donate_priority(struct thread *t) {
   struct thread *cur = thread_current();
-
-  // must denote when two's priority are equal to make sure
+  // must donate when two's priority are equal to make sure
   // t be executed before cur!!
   if (t == NULL || cur->priority < t->priority) {
-    return;
+    return 0;
   }
-
+  enum intr_level old_level = intr_disable();
   t->priority = cur->priority;
 
-  enum intr_level old_level = intr_disable();
-  /* remove t and insert it back into ready queue,
-  since current thread is at running state, t will be executed before cur*/
+  /*reorder ready queue since priority has changed
+    remove t and insert it back into ready queue,
+    since current thread is at running state, t will be executed before cur
+    */
+
   list_remove(&t->elem);
   list_insert_ordered(&ready_list, &t->elem, less_priority_thread, NULL);
+  intr_set_level(old_level);
+  return 1;
+  // don't need to yield since it's going to yield just after return
+}
+
+void thread_lock_release(struct lock *lock) {
+  struct thread *cur = thread_current();
+
+  // remove (the) lock from thread's locks list
+  enum intr_level old_level = intr_disable();
+  list_remove(&lock->elem);
+
+  // change back priority
+  int new_priority = lock->holder_true_priority;
+
+  // check whether there are donaters waiting other locks
+  struct list_elem *e;
+  for (e = list_begin(&cur->locks); e != list_end(&cur->locks);
+       e = list_next(e)) {
+    struct lock *temp = list_entry(e, struct lock, elem);
+    if (new_priority < temp->donater_priority) {
+      new_priority = temp->donater_priority;
+    }
+  }
+  if (cur->priority < new_priority) {
+    // TODO I think it shouldn't reach here.... but whatever
+    cur->priority = new_priority;
+  } else {
+    cur->priority = new_priority;
+    thread_yield();
+  }
   intr_set_level(old_level);
 }
