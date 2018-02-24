@@ -25,11 +25,6 @@ struct lock {
 
   // priority of the donater
   int donater_priority;
-
-  // save the priority when the holder gets the lock
-  // TODO actually only useful when the thread has no lock so change this stuff
-  // inside thread instead of lock
-  int holder_true_priority;
 };
 
 // help method in acquire

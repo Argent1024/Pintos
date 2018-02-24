@@ -31,7 +31,7 @@ static struct list all_list;
 /* List of all sleeping thread.
    When a thread_sleep() is called, push the thread into this,
    pop when timer interruput happens.
-   TODO: change to queue maybe */
+   TODO: change to queue maybe <--never do this fucking stupid stuff*/
 static struct list thread_bed;
 
 /* Idle thread. */
@@ -309,23 +309,15 @@ void thread_foreach(thread_action_func *func, void *aux) {
 void thread_set_priority(int new_priority) {
   struct thread *t = thread_current();
   int old_priority = t->priority;
-  // 1 if the priority is donated
-  bool donate = 0;
-  // change lock->holder_true_priority
-  struct list_elem *e;
-  for (e = list_begin(&t->locks); e != list_end(&t->locks); e = list_next(e)) {
-    struct lock *temp = list_entry(e, struct lock, elem);
-    if (temp->holder_true_priority != old_priority) {
-      donate = 1;
-    }
-    temp->holder_true_priority = new_priority;
-  }
-  if (donate == 0) {
-    t->priority = new_priority;
-  }
 
-  if (t->status == THREAD_RUNNING && old_priority > new_priority)
+  if (old_priority == t->true_priority) {
+    // there is no donation
+    t->priority = new_priority;
+    t->true_priority = new_priority;
     thread_yield();
+  } else {
+    t->true_priority = new_priority;
+  }
 }
 
 /* Returns the current thread's priority. */
@@ -428,6 +420,7 @@ static void init_thread(struct thread *t, const char *name, int priority) {
   strlcpy(t->name, name, sizeof t->name);
   t->stack = (uint8_t *)t + PGSIZE;
   t->priority = priority;
+  t->true_priority = priority;
   t->magic = THREAD_MAGIC;
   t->ticksToWake = 0;
 
@@ -548,7 +541,7 @@ bool less_priority_thread(const struct list_elem *a, const struct list_elem *b,
   struct thread *A = list_entry(a, struct thread, elem);
   struct thread *B = list_entry(b, struct thread, elem);
   // higher priority should be put in the front
-  // TODO check when equal the first come first run
+  // it seems when equal the first come first run
   // And why A->priority >= B->priority will make error..???
   return A->priority > B->priority;
 }
@@ -642,7 +635,7 @@ void thread_lock_release(struct lock *lock) {
   list_remove(&lock->elem);
 
   // change back priority
-  int new_priority = lock->holder_true_priority;
+  int new_priority = cur->true_priority;
 
   // check whether there are donaters waiting other locks
   struct list_elem *e;
@@ -654,11 +647,10 @@ void thread_lock_release(struct lock *lock) {
     }
   }
   if (cur->priority < new_priority) {
-    // TODO I think it shouldn't reach here.... but whatever
-    cur->priority = new_priority;
+    // I think it shouldn't reach here.... but whatever
+    cur->priority = -1;
   } else {
     cur->priority = new_priority;
-    thread_yield();
   }
   intr_set_level(old_level);
 }
