@@ -200,7 +200,8 @@ void lock_acquire(struct lock *lock) {
   sema_down(&lock->semaphore);
 
   // TODO consider whether there is a situation that need to change priority at
-  // this point got the lock, update information
+  // this point
+  // got the lock, update information
   lock->holder = thread_current();
 
   // init lock's priority

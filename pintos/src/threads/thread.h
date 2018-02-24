@@ -90,6 +90,7 @@ struct thread {
   int priority;              /* Effective Priority. */
   int true_priority;         /* The actually priority */
 
+  int nice;                 /* How nice(bad) the thread is going to be emmmm*/
   struct list_elem allelem; /* List element for all threads list. */
 
   /* Shared between thread.c and synch.c. */

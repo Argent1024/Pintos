@@ -324,14 +324,10 @@ void thread_set_priority(int new_priority) {
 int thread_get_priority(void) { return thread_current()->priority; }
 
 /* Sets the current thread's nice value to NICE. */
-void thread_set_nice(int nice UNUSED) { /* Not yet implemented. */
-}
+void thread_set_nice(int nice) { thread_current()->nice = nice; }
 
 /* Returns the current thread's nice value. */
-int thread_get_nice(void) {
-  /* Not yet implemented. */
-  return 0;
-}
+int thread_get_nice(void) { return thread_current()->nice; }
 
 /* Returns 100 times the system load average. */
 int thread_get_load_avg(void) {
@@ -566,7 +562,6 @@ void thread_goto_sleep(int64_t ticks, int64_t start) {
   // put stuff in sleeping_thread list
   t->ticksToWake = start + ticks;
 
-  // will crash if put this line after schedule()????
   t->status = THREAD_BLOCKED;
   if (list_empty(&thread_bed)) {
     enum intr_level old_level = intr_disable();
@@ -653,4 +648,26 @@ void thread_lock_release(struct lock *lock) {
     cur->priority = new_priority;
   }
   intr_set_level(old_level);
+}
+
+// TODO: change every insert into and remove from ready_list
+
+// put the thread into ready queue
+void add_ready_queue(struct thread *thread) {
+  if (thread_mlfqs) {
+  } else {
+    enum intr_level old_level = intr_disable();
+    list_insert_ordered(&ready_list, &thread->elem, less_priority_thread, NULL);
+    thread->status = THREAD_READY;
+    intr_set_level(old_level);
+  }
+}
+
+void pop_ready_queue(struct thread *thread) {
+  if (thread_mlfqs) {
+  } else {
+    enum intr_level old_level = intr_disable();
+    list_remove(&thread->elem);
+    intr_set_level(old_level);
+  }
 }
