@@ -5,6 +5,7 @@
         "thread": "c",
         "functional": "c",
         "tests.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "*.tcc": "c"
     }
 }

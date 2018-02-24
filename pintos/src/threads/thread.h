@@ -90,16 +90,17 @@ struct thread {
   int priority;              /* Effective Priority. */
   int true_priority;         /* The actually priority */
 
-  int nice;                 /* How nice(bad) the thread is going to be emmmm*/
+  int recent_cpu;           /* Yeah, the recent_cpu as the name says*/
+  int nice;                 /* How bad the thread is going to be emmmm*/
   struct list_elem allelem; /* List element for all threads list. */
 
   /* Shared between thread.c and synch.c. */
   struct list_elem elem;    /* List element. */
-  int64_t ticksToWake;      /* should be wake when ticks reach this number */
+  int64_t ticksToWake;      /* Should be wake up when ticks reach this number */
   struct list_elem bedelem; /* List element for thread bed*/
 
   struct list locks; /* Locks this thread holding, used in set_priority*/
-  struct lock *waiting_lock; /*this thread is waiting...*/
+  struct lock *waiting_lock; /*this thread is waiting for this lock....*/
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
   uint32_t *pagedir; /* Page directory. */
@@ -151,7 +152,7 @@ bool less_priority_thread(const struct list_elem *a, const struct list_elem *b,
 bool less_sleeping_thread(const struct list_elem *a, const struct list_elem *b,
                           void *aux);
 
-void wake_up_thread(int64_t ticks);
+void wake_up_thread(int64_t ticks, bool update);
 
 void thread_goto_sleep(int64_t ticks, int64_t start);
 
@@ -163,5 +164,12 @@ bool donate_priority(struct thread *, int);
 // change the priority of current thread if necessary
 // and remove the lock inside locks list
 void thread_lock_release(struct lock *);
+
+// return the advance priority used in advanced scheduler
+int thread_get_advanced_priority(struct thread *t);
+
+void add_ready_queue(struct thread *);
+void pop_ready_queue(struct thread *);
+void update_cpu_recent(void);
 
 #endif /* threads/thread.h */

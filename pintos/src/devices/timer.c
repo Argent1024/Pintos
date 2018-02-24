@@ -131,7 +131,7 @@ void timer_print_stats(void) {
 static void timer_interrupt(struct intr_frame* args UNUSED) {
   ticks++;
   // wake up threads
-  wake_up_thread(timer_ticks());
+  wake_up_thread(timer_ticks(), timer_ticks() % TIMER_FREQ == 0);
   thread_tick();
 }
 
