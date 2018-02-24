@@ -96,6 +96,7 @@ struct thread {
   struct list_elem bedelem; /* List element for thread bed*/
 
   struct list locks; /* Locks this thread holding, used in set_priority*/
+  struct lock *waiting_lock; /*this thread is waiting...*/
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
   uint32_t *pagedir; /* Page directory. */
@@ -153,7 +154,7 @@ void thread_goto_sleep(int64_t ticks, int64_t start);
 
 // helper method used in synch, current thread raise t's priority
 // return donated or not
-bool donate_priority(struct thread *);
+bool donate_priority(struct thread *, int);
 
 // helper method used in synch
 // change the priority of current thread if necessary

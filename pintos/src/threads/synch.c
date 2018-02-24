@@ -170,6 +170,18 @@ void lock_init(struct lock *lock) {
   sema_init(&lock->semaphore, 1);
 }
 
+void check_priority(struct lock *lock, int priority) {
+  if (lock == NULL || lock->holder == NULL ||
+      lock->donater_priority >= priority) {
+    return;
+  }
+
+  lock->donater_priority = priority;
+  donate_priority(lock->holder, priority);
+  // TODO reorder stuff in lock's waiter
+  check_priority(lock->holder->waiting_lock, priority);
+}
+
 /* Acquires LOCK, sleeping until it becomes available if
    necessary.  The lock must not already be held by the current
    thread.
@@ -182,11 +194,9 @@ void lock_acquire(struct lock *lock) {
   ASSERT(lock != NULL);
   ASSERT(!intr_context());
   ASSERT(!lock_held_by_current_thread(lock));
-
-  donate_priority(lock->holder);
-  if (lock->donater_priority < thread_get_priority()) {
-    lock->donater_priority = thread_get_priority();
-  }
+  struct thread *cur = thread_current();
+  cur->waiting_lock = lock;
+  check_priority(lock, thread_get_priority());
   sema_down(&lock->semaphore);
   // got the lock, update information
   lock->holder = thread_current();

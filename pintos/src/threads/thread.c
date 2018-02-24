@@ -613,15 +613,14 @@ void wake_up_thread(int64_t ticks) {
   }
 }
 
-bool donate_priority(struct thread *t) {
-  struct thread *cur = thread_current();
+bool donate_priority(struct thread *t, int priority) {
   // must donate when two's priority are equal to make sure
   // t be executed before cur!!
-  if (t == NULL || cur->priority < t->priority) {
+  if (t == NULL || priority < t->priority) {
     return 0;
   }
   enum intr_level old_level = intr_disable();
-  t->priority = cur->priority;
+  t->priority = priority;
 
   /*reorder ready queue since priority has changed
     remove t and insert it back into ready queue,

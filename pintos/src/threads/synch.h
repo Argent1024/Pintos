@@ -32,6 +32,8 @@ struct lock {
   int holder_true_priority;
 };
 
+// help method in acquire
+void check_priority(struct lock *lock, int priority);
 void lock_init(struct lock *);
 void lock_acquire(struct lock *);
 bool lock_try_acquire(struct lock *);
