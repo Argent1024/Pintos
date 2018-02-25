@@ -755,8 +755,11 @@ void ticks_update(bool update) {
     // update load_avg
     fixed_point_t t1, t2;
     t1 = fix_scale(load_avg, 59);
+    load_avg = t1;
     t1 = fix_unscale(t1, 60);
+    load_avg = t1;
     t2 = fix_frac(num_ready_threads, 60);
+    load_avg = t2;
     load_avg = fix_add(t1, t2);
 
     // update ready queue
