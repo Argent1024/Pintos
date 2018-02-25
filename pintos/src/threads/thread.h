@@ -152,7 +152,7 @@ bool less_priority_thread(const struct list_elem *a, const struct list_elem *b,
 bool less_sleeping_thread(const struct list_elem *a, const struct list_elem *b,
                           void *aux);
 
-void wake_up_thread(int64_t ticks, bool update);
+void wake_up_thread(int64_t ticks);
 
 void thread_goto_sleep(int64_t ticks, int64_t start);
 
@@ -170,6 +170,9 @@ int thread_get_advanced_priority(struct thread *t);
 
 void add_ready_queue(struct thread *);
 void pop_ready_queue(struct thread *);
-void update_cpu_recent(void);
+void update_cpu_recent(struct thread *, void *aux UNUSED);
+
+// called when ticks happens
+void ticks_update(bool);
 
 #endif /* threads/thread.h */

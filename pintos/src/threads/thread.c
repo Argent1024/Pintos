@@ -26,8 +26,6 @@ static struct list ready_list;
 
 static fixed_point_t load_avg;
 // stupid
-static fixed_point_t const1;
-static fixed_point_t const2;
 static int num_ready_threads;
 
 /* ready queue struct for advanced schedule*/
@@ -120,19 +118,9 @@ void thread_init(void) {
   list_init(&ready_list);
   list_init(&all_list);
   list_init(&thread_bed);
-  // add an end to it avoid stupid behaviour
-
-  /* Set up a thread structure for the running thread. */
-  initial_thread = running_thread();
-  init_thread(initial_thread, "main", PRI_DEFAULT, 0);
-  initial_thread->status = THREAD_RUNNING;
-  initial_thread->tid = allocate_tid();
-
   if (thread_mlfqs) {
     // don't waste time and space if not
     load_avg = fix_int(0);
-    const1 = fix_frac(59, 60);
-    const2 = fix_frac(1, 60);
     num_ready_threads = 1;
 
     int i;  // gcc tells me not to init i inside for emmm
@@ -140,6 +128,12 @@ void thread_init(void) {
       list_init(&advanced_ready_queue[i]);
     }
   }
+
+  /* Set up a thread structure for the running thread. */
+  initial_thread = running_thread();
+  init_thread(initial_thread, "main", PRI_DEFAULT, 0);
+  initial_thread->status = THREAD_RUNNING;
+  initial_thread->tid = allocate_tid();
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -357,7 +351,12 @@ void thread_set_priority(int new_priority) {
 }
 
 /* Returns the current thread's priority. */
-int thread_get_priority(void) { return thread_current()->priority; }
+int thread_get_priority(void) {
+  if (thread_mlfqs) {
+    return thread_get_advanced_priority(thread_current());
+  }
+  return thread_current()->priority;
+}
 
 /* Sets the current thread's nice value to NICE. */
 void thread_set_nice(int nice) { thread_current()->nice = nice; }
@@ -368,19 +367,22 @@ int thread_get_nice(void) { return thread_current()->nice; }
 /* Returns 100 times the system load average. */
 int thread_get_load_avg(void) { return fix_round(fix_scale(load_avg, 100)); }
 
-void update_cpu_recent(void) {
+void update_cpu_recent(struct thread *thread, void *aux UNUSED) {
   fixed_point_t t, s;
   t = fix_scale(load_avg, 2);
   s = fix_add(t, fix_int(1));
   t = fix_div(t, s);
-  struct thread *cur = thread_current();
-  cur->recent_cpu = fix_round(fix_scale(t, cur->recent_cpu)) + cur->nice;
+  thread->recent_cpu =
+      fix_round(fix_scale(t, thread->recent_cpu)) + thread->nice;
+  int new_priority = thread_get_advanced_priority();
+
+  add_ready_queue(thread);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int thread_get_recent_cpu(void) {
   /* Not yet implemented. */
-  return 0;
+  return 100 * thread_current()->recent_cpu;
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -489,10 +491,21 @@ static void *alloc_frame(struct thread *t, size_t size) {
    will be in the run queue.)  If the run queue is empty, return
    idle_thread. */
 static struct thread *next_thread_to_run(void) {
-  if (list_empty(&ready_list))
+  if (thread_mlfqs) {
+    int i;
+    for (i = PRI_MAX; i >= PRI_MIN; i--) {
+      struct list *l = &advanced_ready_queue[i];
+      if (!list_empty(l)) {
+        return list_entry(list_pop_front(l), struct thread, elem);
+      }
+    }
     return idle_thread;
-  else
-    return list_entry(list_pop_front(&ready_list), struct thread, elem);
+  } else {
+    if (list_empty(&ready_list))
+      return idle_thread;
+    else
+      return list_entry(list_pop_front(&ready_list), struct thread, elem);
+  }
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -621,22 +634,9 @@ void thread_goto_sleep(int64_t ticks, int64_t start) {
   }
 }
 
-void wake_up_thread(int64_t ticks, bool update) {
+void wake_up_thread(int64_t ticks) {
   struct list_elem *e;
   struct thread *t;
-
-  // update load_avg
-  // emmm put here just because don't want write another function=.=
-  thread_current()->recent_cpu += 1;
-  if (update) {
-    // update load_avg
-    fixed_point_t t1, t2;
-    t1 = fix_mul(const1, load_avg);
-    t2 = fix_mul(const2, load_avg);
-    load_avg = fix_add(t1, t2);
-
-    update_cpu_recent();
-  }
 
   if (list_empty(&thread_bed)) {
     return;
@@ -715,6 +715,11 @@ void thread_lock_release(struct lock *lock) {
 // put the thread into ready queue
 void add_ready_queue(struct thread *thread) {
   if (thread_mlfqs) {
+    int priority = thread_get_advanced_priority(thread);
+    enum intr_level old_level = intr_disable();
+    list_push_back(&advanced_ready_queue[priority], &thread->elem);
+    thread->status = THREAD_READY;
+    intr_set_level(old_level);
   } else {
     enum intr_level old_level = intr_disable();
     list_insert_ordered(&ready_list, &thread->elem, less_priority_thread, NULL);
@@ -726,6 +731,8 @@ void add_ready_queue(struct thread *thread) {
 // get the specific thread out of the ready queue
 void pop_ready_queue(struct thread *thread) {
   if (thread_mlfqs) {
+    // should be called with interrupt off
+    if (thread->status == THREAD_READY) list_remove(&thread->elem);
   } else {
     enum intr_level old_level = intr_disable();
     list_remove(&thread->elem);
@@ -734,4 +741,30 @@ void pop_ready_queue(struct thread *thread) {
 }
 
 // just like the hash funciton =.=
-int thread_get_advanced_priority(struct thread *t UNUSED) { return 0; }
+int thread_get_advanced_priority(struct thread *t) {
+  int priority = PRI_MAX - (t->recent_cpu / 4) - (t->nice / 2);
+  return priority;
+}
+
+void ticks_update(bool update) {
+  // update load_avg and recent_cpu
+  thread_current()->recent_cpu += 1;
+  if (update) {
+    enum intr_level old_level = intr_disable();
+    thread_foreach(pop_ready_queue);
+    // update load_avg
+    fixed_point_t t1, t2;
+    t1 = fix_scale(load_avg, 59);
+    t1 = fix_unscale(t1, 60);
+    t2 = fix_frac(num_ready_threads, 60);
+    load_avg = fix_add(t1, t2);
+
+    /*struct list_elem *e;
+    for (e = list_begin(&all_list); e != list_end(&all_list);
+         e = list_next(e)) {
+      struct thread *t = list_entry(e, struct thread, allelem);
+      func(t, aux);*/
+    thread_foreach(update_cpu_recent, NULL);
+    intr_set_level(old_level);
+  }
+}
