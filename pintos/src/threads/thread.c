@@ -741,7 +741,9 @@ void add_ready_queue(struct thread *thread) {
 void pop_ready_queue(struct thread *thread) {
   if (thread_mlfqs) {
     // should be called with interrupt off
+    enum intr_level old_level = intr_disable();
     if (thread->status == THREAD_READY) list_remove(&thread->elem);
+    intr_set_level(old_level);
   } else {
     enum intr_level old_level = intr_disable();
     list_remove(&thread->elem);
