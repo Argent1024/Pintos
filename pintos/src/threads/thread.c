@@ -793,8 +793,12 @@ void ticks_update(bool update) {
         thread = list_entry(e, struct thread, elem);
         update_cpu_recent(thread, NULL);
         if (thread_get_advanced_priority(thread) != priority) {
+          // 1hour bug emmmmm list_remove will crash list_next(e)
+          // !!!!!!!!!!!!!!!!!!!!!!!
+          // TODO:fix this
+
           // remove thread from ready queue
-          list_remove(&thread->elem);
+          list_remove(&thread->elem);  // suppose to be useless
           // put every thread need to move into ready list
           list_push_back(&ready_list, &thread->elem);
         }
@@ -804,6 +808,7 @@ void ticks_update(bool update) {
     l = &ready_list;
     for (e = list_begin(l); e != list_end(l); e = list_next(e)) {
       thread = list_entry(e, struct thread, elem);
+      list_remove(&thread->elem);  // suppose to be useless
       add_ready_queue(thread);
     }
     intr_set_level(old_level);
