@@ -24,13 +24,18 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+static fixed_point_t fixed_PRI_MAX;
+
 static fixed_point_t load_avg;
 // stupid
 static bool init_finish;
 static int num_ready_threads;
 
 /* ready queue struct for advanced schedule*/
-static struct list advanced_ready_queue[PRI_MAX];
+// fuck..... their should be pri_max + 1 list.....
+// spent 4 hours on weird behaviour by this...
+static struct list advanced_ready_queue[PRI_MAX + 1];
+
 // The more advance the queue, the longer the name.
 /*
   So this is just n lists.
@@ -92,7 +97,7 @@ static void idle(void *aux UNUSED);
 static struct thread *running_thread(void);
 static struct thread *next_thread_to_run(void);
 static void init_thread(struct thread *, const char *name, int priority,
-                        int used_cpu);
+                        fixed_point_t used_cpu);
 static bool is_thread(struct thread *) UNUSED;
 static void *alloc_frame(struct thread *, size_t size);
 static void schedule(void);
@@ -121,19 +126,19 @@ void thread_init(void) {
   list_init(&all_list);
   list_init(&thread_bed);
   if (thread_mlfqs) {
-    // don't waste time and space if not
-    load_avg = fix_int(0);
-    num_ready_threads = 1;
+    fixed_PRI_MAX = fix_int(PRI_MAX);
+    num_ready_threads = 0;
 
     int i;  // gcc tells me not to init i inside for emmm
     for (i = PRI_MIN; i <= PRI_MAX; i++) {
       list_init(&advanced_ready_queue[i]);
     }
+    load_avg = fix_int(0);
   }
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread();
-  init_thread(initial_thread, "main", PRI_DEFAULT, 0);
+  init_thread(initial_thread, "main", PRI_DEFAULT, fix_int(0));
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid();
 }
@@ -375,13 +380,13 @@ void update_cpu_recent(struct thread *thread, void *aux UNUSED) {
   s = fix_add(t, fix_int(1));
   t = fix_div(t, s);
   thread->recent_cpu =
-      fix_round(fix_mul(t, fix_int(thread->recent_cpu))) + thread->nice;
+      fix_add(fix_mul(t, thread->recent_cpu), fix_int(thread->nice));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int thread_get_recent_cpu(void) {
   /* Not yet implemented. */
-  return 100 * thread_current()->recent_cpu;
+  return fix_round(fix_scale(thread_current()->recent_cpu, 100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -448,7 +453,7 @@ static bool is_thread(struct thread *t) {
 /* Does basic initialization of T as a blocked thread named
    NAME. */
 static void init_thread(struct thread *t, const char *name, int priority,
-                        int used_cpu) {
+                        fixed_point_t used_cpu) {
   enum intr_level old_level;
 
   ASSERT(t != NULL);
@@ -495,7 +500,9 @@ static struct thread *next_thread_to_run(void) {
     for (i = PRI_MAX; i >= PRI_MIN; i--) {
       struct list *l = &advanced_ready_queue[i];
       if (!list_empty(l)) {
-        return list_entry(list_pop_front(l), struct thread, elem);
+        struct thread *t = list_entry(list_begin(l), struct thread, elem);
+        list_remove(&t->elem);
+        return t;
       }
     }
     return idle_thread;
@@ -611,6 +618,8 @@ void thread_goto_sleep(int64_t ticks, int64_t start) {
   if (ticks <= 0) {
     return;
   }
+  // reduce num_threads_ready
+  num_ready_threads -= 1;
 
   ASSERT(intr_get_level() == INTR_ON);
   // go to bed -- take the thread off ready list
@@ -653,6 +662,7 @@ void wake_up_thread(int64_t ticks) {
        list_insert_ordered(&ready_list, &t->elem, less_priority_thread, NULL);
        intr_set_level(old_level);*/
       add_ready_queue(t);
+      num_ready_threads += 1;
 
     } else {
       break;
@@ -714,8 +724,8 @@ void thread_lock_release(struct lock *lock) {
 // put the thread into ready queue
 void add_ready_queue(struct thread *thread) {
   if (thread_mlfqs) {
-    int priority = thread_get_advanced_priority(thread);
     enum intr_level old_level = intr_disable();
+    int priority = thread_get_advanced_priority(thread);
     list_push_back(&advanced_ready_queue[priority], &thread->elem);
     thread->status = THREAD_READY;
     intr_set_level(old_level);
@@ -741,14 +751,22 @@ void pop_ready_queue(struct thread *thread) {
 
 // just like the hash funciton =.=
 int thread_get_advanced_priority(struct thread *t) {
-  int priority = PRI_MAX - (t->recent_cpu / 4) - (t->nice / 2);
-  return priority;
+  fixed_point_t p;  //= PRI_MAX - (t->recent_cpu / 4) - (t->nice / 2);
+  p = fix_int(t->nice);
+  p = fix_add(fix_unscale(t->recent_cpu, 4), fix_unscale(p, 2));
+  int ans = fix_round(fix_sub(fixed_PRI_MAX, p));
+  if (ans > PRI_MAX) {
+    ans = PRI_MAX;
+  } else if (ans < PRI_MIN) {
+    ans = PRI_MIN;
+  }
+  return ans;
 }
 
 void ticks_update(bool update) {
   // update load_avg and recent_cpu
-  thread_current()->recent_cpu += 1;
-
+  struct thread *cur = thread_current();
+  cur->recent_cpu = fix_add(cur->recent_cpu, fix_int(1));
   // unexcepted update when init not finish emmmm
   if (update && thread_mlfqs) {
     enum intr_level old_level = intr_disable();
@@ -773,6 +791,8 @@ void ticks_update(bool update) {
         thread = list_entry(e, struct thread, elem);
         update_cpu_recent(thread, NULL);
         if (thread_get_advanced_priority(thread) != priority) {
+          // remove thread from ready queue
+          list_remove(&thread->elem);
           // put every thread need to move into ready list
           list_push_back(&ready_list, &thread->elem);
         }

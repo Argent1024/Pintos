@@ -90,7 +90,7 @@ struct thread {
   int priority;              /* Effective Priority. */
   int true_priority;         /* The actually priority */
 
-  int recent_cpu;           /* Yeah, the recent_cpu as the name says*/
+  fixed_point_t recent_cpu; /* Yeah, the recent_cpu as the name says*/
   int nice;                 /* How bad the thread is going to be emmmm*/
   struct list_elem allelem; /* List element for all threads list. */
 
