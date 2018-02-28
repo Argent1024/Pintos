@@ -129,7 +129,7 @@ void timer_print_stats(void) {
 
 /* Timer interrupt handler. */
 static void timer_interrupt(struct intr_frame* args UNUSED) {
-  ticks_update(timer_ticks() % TIMER_FREQ == 0);
+  ticks_update((timer_ticks() % TIMER_FREQ) == 0);
 
   ticks++;
   // wake up threads

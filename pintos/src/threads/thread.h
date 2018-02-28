@@ -90,6 +90,8 @@ struct thread {
   int priority;              /* Effective Priority. */
   int true_priority;         /* The actually priority */
 
+  int old_mlfqs_priority; /* Save the lastest priority*/
+
   fixed_point_t recent_cpu; /* Yeah, the recent_cpu as the name says*/
   int nice;                 /* How bad the thread is going to be emmmm*/
   struct list_elem allelem; /* List element for all threads list. */
@@ -98,6 +100,7 @@ struct thread {
   struct list_elem elem;    /* List element. */
   int64_t ticksToWake;      /* Should be wake up when ticks reach this number */
   struct list_elem bedelem; /* List element for thread bed*/
+                            /* WTF? Why you don't just use elem???*/
 
   struct list locks; /* Locks this thread holding, used in set_priority*/
   struct lock *waiting_lock; /*this thread is waiting for this lock....*/
