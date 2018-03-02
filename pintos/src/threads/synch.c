@@ -363,7 +363,6 @@ struct semaphore *cond_wake_up(struct condition *cond) {
     }
   }
   list_remove(ans);
-
   intr_set_level(old_level);
   return &list_entry(ans, struct semaphore_elem, elem)->semaphore;
 }
