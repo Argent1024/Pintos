@@ -323,10 +323,9 @@ void cond_signal(struct condition *cond, struct lock *lock UNUSED) {
   ASSERT(!intr_context());
   ASSERT(lock_held_by_current_thread(lock));
 
-  if (!list_empty(&cond->waiters))
-    sema_up(
-        &list_entry(list_pop_front(&cond->waiters), struct semaphore_elem, elem)
-             ->semaphore);
+  if (!list_empty(&cond->waiters)) sema_up(cond_wake_up(cond));
+  // &list_entry(list_pop_front(&cond->waiters), struct semaphore_elem,
+  // elem)->semaphore);
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
@@ -340,4 +339,31 @@ void cond_broadcast(struct condition *cond, struct lock *lock) {
   ASSERT(lock != NULL);
 
   while (!list_empty(&cond->waiters)) cond_signal(cond, lock);
+}
+
+// TODO delete this function and keep a ordered list to get o(1) approach
+struct semaphore *cond_wake_up(struct condition *cond) {
+  struct list *l = &cond->waiters;
+  struct list *temp_list;
+  struct semaphore_elem *temp;
+  struct list_elem *e;
+  int max = -1;
+  int priority;
+  struct list_elem *ans = list_begin(l);  // the stuff with maximum priority
+
+  enum intr_level old_level = intr_disable();
+
+  for (e = list_begin(l); e != list_end(l); e = list_next(e)) {
+    temp = list_entry(e, struct semaphore_elem, elem);
+    temp_list = &temp->semaphore.waiters;
+    priority = list_entry(list_begin(temp_list), struct thread, elem)->priority;
+    if (max < priority) {
+      max = priority;
+      ans = e;
+    }
+  }
+  list_remove(ans);
+
+  intr_set_level(old_level);
+  return &list_entry(ans, struct semaphore_elem, elem)->semaphore;
 }
