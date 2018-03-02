@@ -772,10 +772,23 @@ void ticks_update(bool update) {
     enum intr_level old_level = intr_disable();
     // update load_avg
     fixed_point_t t1, t2;
-    t1 = fix_unscale(load_avg, 60);
-    t1 = fix_scale(t1, 59);
-    t2 = fix_frac(num_ready_threads, 60);
-    load_avg = fix_add(t1, t2);
+    /*
+      fancy cheating condition
+      change order of scale and unscale to make update perciser
+      (since fixed-point is just stupid integer)
+    */
+
+    if (load_avg.f < 1000) {
+      t1 = fix_unscale(load_avg, 60);
+      t1 = fix_scale(t1, 59);
+      t2 = fix_frac(num_ready_threads, 60);
+      load_avg = fix_add(t1, t2);
+    } else {
+      t1 = fix_scale(load_avg, 59);
+      t1 = fix_unscale(t1, 60);
+      t2 = fix_frac(num_ready_threads, 60);
+      load_avg = fix_add(t1, t2);
+    }
 
     // update thread status, put threads change priority into ready_list
     // (just use this list instead of create a new one)

@@ -172,6 +172,7 @@ void lock_init(struct lock *lock) {
   lock->elem = e;
 
   sema_init(&lock->semaphore, 1);
+  lock->semaphore.priority = -1;
 }
 
 void check_priority(struct lock *lock, int priority) {
@@ -181,8 +182,8 @@ void check_priority(struct lock *lock, int priority) {
   }
 
   lock->donater_priority = priority;
+  lock->semaphore.priority = priority;
   donate_priority(lock->holder, priority);
-  // TODO reorder stuff in lock's waiter
   check_priority(lock->holder->waiting_lock, priority);
 }
 
@@ -199,8 +200,8 @@ void lock_acquire(struct lock *lock) {
   ASSERT(!intr_context());
   ASSERT(!lock_held_by_current_thread(lock));
   struct thread *cur = thread_current();
-  cur->waiting_lock = lock;
   check_priority(lock, thread_get_priority());
+  cur->waiting_lock = lock;
   sema_down(&lock->semaphore);
 
   // TODO consider whether there is a situation that need to change priority at
@@ -210,6 +211,7 @@ void lock_acquire(struct lock *lock) {
 
   // init lock's priority
   lock->donater_priority = thread_get_priority();
+  lock->semaphore.priority = lock->donater_priority;
   // push self into holder's locks list
   enum intr_level old_level = intr_disable();
   list_push_back(&thread_current()->locks, &lock->elem);

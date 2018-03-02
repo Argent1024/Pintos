@@ -6,7 +6,9 @@
 
 /* A counting semaphore. */
 struct semaphore {
-  unsigned value;      /* Current value. */
+  unsigned value; /* Current value. */
+  int priority;   /* should be same as donater_priority in the lock holding this
+                     semaphore*/
   struct list waiters; /* List of waiting threads. */
 };
 
@@ -44,6 +46,9 @@ void cond_init(struct condition *);
 void cond_wait(struct condition *, struct lock *);
 void cond_signal(struct condition *, struct lock *);
 void cond_broadcast(struct condition *, struct lock *);
+
+bool less_semaphore(const struct list_elem *a, const struct list_elem *b,
+                    void *aux);
 
 /* Optimization barrier.
 
