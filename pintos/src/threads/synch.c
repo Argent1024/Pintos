@@ -114,7 +114,11 @@ void sema_up(struct semaphore *sema) {
   }
   sema->value++;
   intr_set_level(old_level);
-  thread_yield();
+
+  // TODO: fucking implement this when using user program
+  // NOTE: it will definitly crash something during booting when using user-prog
+
+  // thread_yield();
 }
 
 static void sema_test_helper(void *sema_);
