@@ -414,3 +414,15 @@ static bool install_page(void *upage, void *kpage, bool writable) {
   return (pagedir_get_page(t->pagedir, upage) == NULL &&
           pagedir_set_page(t->pagedir, upage, kpage, writable));
 }
+
+/* split file name and push them into user stack*/
+static bool argument_phraser(const char *file_name, void **esp) {
+  char c;
+  int i;
+  // asuming file name won't be null
+  for (i = 0;; i++) {
+    if (file_name[i] == '\0') break;
+    c = file_name[i];
+    // TODO emmmm assembly
+  }
+}
