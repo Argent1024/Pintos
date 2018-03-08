@@ -22,6 +22,7 @@
 static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
 static bool load(const char *cmdline, void (**eip)(void), void **esp);
+static bool argument_phraser(const char *file_name, void **esp);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -207,8 +208,31 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
   if (t->pagedir == NULL) goto done;
   process_activate();
 
+  /*read the file name(true) in file_name(actually the command)*/
+  char true_file_name[14];
+  for (i = 0;; i++) {
+    if (file_name[i] == '\0') {
+      // reach the end of file_name
+      break;
+    } else if (file_name[i] == ' ') {
+      // skip all the space when first meet
+      while (file_name[i] == ' ') {
+        i++;
+      }
+    } else {
+      // read the word
+      int count = 0;
+      while ((file_name[i] != ' ' && file_name[i] != '\0')) {
+        true_file_name[count] = file_name[i];
+        count += 1;
+        i += 1;
+      }
+      true_file_name[count] = '\0';
+      break;
+    }
+  }
   /* Open executable file. */
-  file = filesys_open(file_name);
+  file = filesys_open(true_file_name);
   if (file == NULL) {
     printf("load: %s: open failed\n", file_name);
     goto done;
@@ -275,6 +299,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp) {
 
   /* Set up stack. */
   if (!setup_stack(esp)) goto done;
+  if (!argument_phraser(file_name, esp)) goto done;
 
   /* Start address. */
   *eip = (void (*)(void))ehdr.e_entry;
@@ -415,14 +440,103 @@ static bool install_page(void *upage, void *kpage, bool writable) {
           pagedir_set_page(t->pagedir, upage, kpage, writable));
 }
 
+/* Reads a byte at user virtual address UADDR.
+UADDR must be below PHYS_BASE.
+Returns the byte value if successful, -1 if a segfault
+occurred. */
+static int get_user(uint8_t *uaddr) {
+  int result;
+  asm("movl $1f, %0; movzbl %1, %0; 1:" : "=&a"(result) : "m"(*uaddr));
+  return result;
+}
+
+/* Writes BYTE to user address UDST.
+UDST must be below PHYS_BASE.
+Returns true if successful, false if a segfault occurred. */
+static bool put_user(uint8_t *udst, uint8_t byte) {
+  int error_code;
+  asm("movl $1f, %0; movb %b2, %1; 1:"
+      : "=&a"(error_code), "=m"(*udst)
+      : "q"(byte));
+  return error_code != -1;
+}
+
+/* push a string into stack, also changing the esp,
+return -1 if error*/
+static bool push_string(void **esp, char *string) {
+  int size = (int)strlen(string);
+  for (; size >= 0; size--) {
+    if (!put_user(*esp, (uint8_t)string[size])) {
+      return -1;
+    }
+    *esp -= 1;
+  }
+  return 1;
+}
+
+// fucking stupid..
+static bool push_pointer(void **esp, void *pointer) {
+  int p = (int)pointer;
+  if (!put_user(*esp, p & 0x000000ff)) return -1;
+  *esp -= 1;
+  if (!put_user(*esp, p >> 8 & 0x000000ff)) return -1;
+  *esp -= 1;
+  if (!put_user(*esp, p >> 16 & 0x000000ff)) return -1;
+  *esp -= 1;
+  if (!put_user(*esp, p >> 24 & 0x000000ff)) return -1;
+  *esp -= 1;
+  return 1;
+}
+
 /* split file name and push them into user stack*/
 static bool argument_phraser(const char *file_name, void **esp) {
-  char c;
+  char arg[20];  // TODO big enough..?
+  void *args_loc[10];
+
   int i;
+  int count;
+  int argc = 0;
   // asuming file name won't be null
   for (i = 0;; i++) {
-    if (file_name[i] == '\0') break;
-    c = file_name[i];
-    // TODO emmmm assembly
+    if (file_name[i] == '\0') {
+      // reach the end of file_name
+      break;
+    } else if (file_name[i] == ' ') {
+      // skip all the space
+      while (file_name[i] == ' ') {
+        i++;
+      }
+    } else {
+      // read the word
+      count = 0;
+      while (file_name[i] != ' ' && file_name[i] != '\0') {
+        arg[count] = file_name[i];
+        count += 1;
+        i += 1;
+      }
+      arg[count] = '\0';
+      // write the string to stack
+      if (push_string(esp, arg)) {
+        args_loc[argc] = *esp;
+        argc += 1;
+      } else {
+        return -1;
+      }
+    }
   }
+  // null between data and args pointer
+  put_user((uint8_t *)*esp, (char)0);
+
+  // args pointer
+  for (i = 0; i <= argc; i++) {
+    if (!push_pointer(esp, args_loc[i])) return -1;
+  }
+
+  // argc just before return adress
+  put_user((uint8_t *)*esp, (char)argc);
+
+  // useless return adress
+  put_user((uint8_t *)*esp, (char)0);
+
+  return 1;
 }

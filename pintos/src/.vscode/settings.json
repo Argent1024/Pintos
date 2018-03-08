@@ -8,6 +8,8 @@
         "stdio.h": "c",
         "*.tcc": "c",
         "ratio": "c",
-        "type_traits": "c"
+        "type_traits": "c",
+        "initializer_list": "c",
+        "utility": "c"
     }
 }
