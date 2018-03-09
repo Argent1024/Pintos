@@ -466,10 +466,10 @@ return -1 if error*/
 static bool push_string(void **esp, char *string) {
   int size = (int)strlen(string);
   for (; size >= 0; size--) {
+    *esp -= 1;
     if (!put_user(*esp, (uint8_t)string[size])) {
       return -1;
     }
-    *esp -= 1;
   }
   return 1;
 }
@@ -477,14 +477,14 @@ static bool push_string(void **esp, char *string) {
 // fucking stupid..
 static bool push_pointer(void **esp, void *pointer) {
   int p = (int)pointer;
-  if (!put_user(*esp, p & 0x000000ff)) return -1;
-  *esp -= 1;
-  if (!put_user(*esp, p >> 8 & 0x000000ff)) return -1;
-  *esp -= 1;
-  if (!put_user(*esp, p >> 16 & 0x000000ff)) return -1;
   *esp -= 1;
   if (!put_user(*esp, p >> 24 & 0x000000ff)) return -1;
   *esp -= 1;
+  if (!put_user(*esp, p >> 16 & 0x000000ff)) return -1;
+  *esp -= 1;
+  if (!put_user(*esp, p >> 8 & 0x000000ff)) return -1;
+  *esp -= 1;
+  if (!put_user(*esp, p >> 0 & 0x000000ff)) return -1;
   return 1;
 }
 
@@ -524,19 +524,23 @@ static bool argument_phraser(const char *file_name, void **esp) {
       }
     }
   }
-  // null between data and args pointer
-  put_user((uint8_t *)*esp, (char)0);
+  /*TODO put zero to make the esp%4==0
+  put_user((uint8_t *)*esp, (char)0);*/
 
+  args_loc[argc] = 0;
   // args pointer
-  for (i = 0; i <= argc; i++) {
+  for (i = argc; i >= 0; i--) {
     if (!push_pointer(esp, args_loc[i])) return -1;
   }
 
-  // argc just before return adress
-  put_user((uint8_t *)*esp, (char)argc);
+  // argv's location
+  push_pointer(esp, *esp);
+
+  // argc just before return adress (using push_pointer to push an integer)
+  push_pointer(esp, (void *)argc);
 
   // useless return adress
-  put_user((uint8_t *)*esp, (char)0);
+  push_pointer(esp, 0);
 
   return 1;
 }
