@@ -15,9 +15,10 @@ static void syscall_handler(struct intr_frame *f UNUSED) {
   // printf("System call number: %d\n", args[0]);
   if (args[0] == SYS_EXIT) {
     f->eax = args[1];
-    printf("%s: exit(%d)\n", &thread_current()->name, args[1]);
+    printf("%s: exit(%d)\n", thread_current()->name, args[1]);
     thread_exit();
   } else if (args[0] == SYS_WRITE) {
-    printf("TESTING....Not implement yet\n");
+    // write(args[1], (void *)args[2], args[3]);
+    printf("%s", args[2]);
   }
 }

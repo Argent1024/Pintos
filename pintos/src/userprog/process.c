@@ -39,8 +39,24 @@ tid_t process_execute(const char *file_name) {
   if (fn_copy == NULL) return TID_ERROR;
   strlcpy(fn_copy, file_name, PGSIZE);
 
+  char thread_name[16];
+  int i;
+  for (i = 0; i < 16; i++) {
+    if (file_name[i] == '\0') {
+      thread_name[i] = '\0';
+      break;
+    }
+    // THREAD NAME SHOULD NOT START WITH SPACE
+    if (file_name[i] != ' ') {
+      thread_name[i] = file_name[i];
+    } else {
+      thread_name[i] = '\0';
+      break;
+    }
+  }
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create(file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create(thread_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR) palloc_free_page(fn_copy);
   return tid;
 }
@@ -490,8 +506,8 @@ static bool push_pointer(void **esp, void *pointer) {
 
 /* split file name and push them into user stack*/
 static bool argument_phraser(const char *file_name, void **esp) {
-  char arg[20];  // TODO big enough..?
-  void *args_loc[10];
+  char arg[30];  // TODO big enough..?
+  void *args_loc[30];
 
   int i;
   int count;
@@ -503,7 +519,7 @@ static bool argument_phraser(const char *file_name, void **esp) {
       break;
     } else if (file_name[i] == ' ') {
       // skip all the space
-      while (file_name[i] == ' ') {
+      while (file_name[i + 1] == ' ') {
         i++;
       }
     } else {
@@ -524,8 +540,12 @@ static bool argument_phraser(const char *file_name, void **esp) {
       }
     }
   }
-  /*TODO put zero to make the esp%4==0
-  put_user((uint8_t *)*esp, (char)0);*/
+
+  /* put zero to make the esp%4==0 */
+  while ((int)(*esp) % 4 != 0) {
+    *esp -= 1;
+    if (!put_user(*esp, 0)) return -1;
+  }
 
   args_loc[argc] = 0;
   // args pointer
@@ -534,13 +554,13 @@ static bool argument_phraser(const char *file_name, void **esp) {
   }
 
   // argv's location
-  push_pointer(esp, *esp);
+  if (!push_pointer(esp, *esp)) return -1;
 
   // argc just before return adress (using push_pointer to push an integer)
-  push_pointer(esp, (void *)argc);
+  if (!push_pointer(esp, (void *)argc)) return -1;
 
   // useless return adress
-  push_pointer(esp, 0);
+  if (!push_pointer(esp, 0)) return -1;
 
   return 1;
 }
