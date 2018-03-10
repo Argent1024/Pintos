@@ -460,7 +460,7 @@ static bool install_page(void *upage, void *kpage, bool writable) {
 UADDR must be below PHYS_BASE.
 Returns the byte value if successful, -1 if a segfault
 occurred. */
-static int get_user(uint8_t *uaddr) {
+int get_user(uint8_t *uaddr) {
   int result;
   asm("movl $1f, %0; movzbl %1, %0; 1:" : "=&a"(result) : "m"(*uaddr));
   return result;
@@ -469,7 +469,7 @@ static int get_user(uint8_t *uaddr) {
 /* Writes BYTE to user address UDST.
 UDST must be below PHYS_BASE.
 Returns true if successful, false if a segfault occurred. */
-static bool put_user(uint8_t *udst, uint8_t byte) {
+bool put_user(uint8_t *udst, uint8_t byte) {
   int error_code;
   asm("movl $1f, %0; movb %b2, %1; 1:"
       : "=&a"(error_code), "=m"(*udst)
@@ -479,7 +479,7 @@ static bool put_user(uint8_t *udst, uint8_t byte) {
 
 /* push a string into stack, also changing the esp,
 return -1 if error*/
-static bool push_string(void **esp, char *string) {
+bool push_string(void **esp, char *string) {
   int size = (int)strlen(string);
   for (; size >= 0; size--) {
     *esp -= 1;
@@ -491,7 +491,7 @@ static bool push_string(void **esp, char *string) {
 }
 
 // fucking stupid..
-static bool push_pointer(void **esp, void *pointer) {
+bool push_pointer(void **esp, void *pointer) {
   int p = (int)pointer;
   *esp -= 1;
   if (!put_user(*esp, p >> 24 & 0x000000ff)) return -1;
