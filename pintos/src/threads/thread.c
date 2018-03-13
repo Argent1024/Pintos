@@ -215,6 +215,21 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
   init_thread(t, name, priority, thread_current()->recent_cpu);
   tid = t->tid = allocate_tid();
 
+/* Push child into father's list and remember father process
+    And init the return data for child.
+*/
+#ifdef USERPROG
+  struct thread *father = thread_current();
+  struct return_data rd;
+  list_push_back(father->child_return, rd->elem);
+
+  t->father = father;
+  old_level = intr_disable();
+  list_push_back(father->child_process, t->child_process_elem);
+  list_push_back(father->child_return, rd->elem);
+  intr_set_level(old_level);
+#endif
+
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame(t, sizeof *kf);
   kf->eip = NULL;
@@ -295,12 +310,43 @@ tid_t thread_tid(void) { return thread_current()->tid; }
 
 /* Deschedules the current thread and destroys it.  Never
    returns to the caller. */
-void thread_exit(void) {
+void thread_exit(int return_status) {
   ASSERT(!intr_context());
   num_ready_threads -= 1;
-#ifdef USERPROG
+  //#ifdef USERPROG
+  struct thread *child = thread_current();
+
+  struct list_elem *e;
+  struct list *l;
+  struct return_data *rd;
+  // when father is not null, meaning the father is still exisiting
+  old_level = intr_disable();
+  struct thread *father = child->father;
+  if (father != NULL) {
+    list_remove(child->child_process_elem);
+    l = father->child_return;
+
+    for (e = list_begin(l), e != list_end(l), e = list_next(e)) {
+      rd = list_entry(e, struct return_data, elem);
+      if (rd->tid = child->tid) {
+        rd->status = return_status;
+        break;
+      }
+    }
+    if (father->status == THREAD_BLOCKED) thread_unblock(father);
+  }
+
+  // remove child's father pointer
+  struct thread *t;
+  l = &child->child_process;
+  for (e = list_begin(l), e != list_end(l), e = list_next(e)) {
+    t = list_entry(e, struct thread, child_process_elem);
+    t->father = NULL;
+  }
+
+  intr_set_level(old_level);
   process_exit();
-#endif
+  //#endif
 
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
@@ -427,9 +473,9 @@ static void idle(void *idle_started_ UNUSED) {
 static void kernel_thread(thread_func *function, void *aux) {
   ASSERT(function != NULL);
 
-  intr_enable(); /* The scheduler runs with interrupts off. */
-  function(aux); /* Execute the thread function. */
-  thread_exit(); /* If function() returns, kill the thread. */
+  intr_enable();  /* The scheduler runs with interrupts off. */
+  function(aux);  /* Execute the thread function. */
+  thread_exit(0); /* If function() returns, kill the thread. */
 }
 
 /* Returns the running thread. */
@@ -472,6 +518,11 @@ static void init_thread(struct thread *t, const char *name, int priority,
   // init locks list
   list_init(&t->locks);
 
+// init child process list
+#ifdef USERPROG
+  list_init(&t->child_process);
+  list_init(&t->child_return);
+#endif
   old_level = intr_disable();
   list_push_back(&all_list, &t->allelem);
   intr_set_level(old_level);
@@ -617,10 +668,12 @@ void thread_goto_sleep(int64_t ticks, int64_t start) {
   if (ticks <= 0) {
     return;
   }
-
-  ASSERT(intr_get_level() == INTR_ON);
-  // go to bed -- take the thread off ready list
   struct thread *t = thread_current();
+  ASSERT(t->status == THREAD_RUNNING);
+  /* go to bed -- take the thread off ready list
+     ONLY RUNNING THREAD ARE ALLOWED TO CALL THIS
+  */
+
   // put stuff in sleeping_thread list
   t->ticksToWake = start + ticks;
 

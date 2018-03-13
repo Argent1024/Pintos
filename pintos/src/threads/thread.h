@@ -104,13 +104,26 @@ struct thread {
 
   struct list locks; /* Locks this thread holding, used in set_priority*/
   struct lock *waiting_lock; /*this thread is waiting for this lock....*/
+
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
   uint32_t *pagedir; /* Page directory. */
+
+  // used for process wait
+  struct list child_return;  /* the place holding the return status of child*/
+  struct list child_process; /* the child process of this process*/
+  struct list_elem child_process_elem;
+  struct thread *father; /*remember the father process, call it when exit*/
 #endif
 
   /* Owned by thread.c. */
   unsigned magic; /* Detects stack overflow. */
+};
+
+struct return_data {
+  int status;  // 1 meaning is running
+  tid_t tid;
+  struct list_elem elem;
 };
 
 /* If false (default), use round-robin scheduler.
@@ -134,7 +147,7 @@ struct thread *thread_current(void);
 tid_t thread_tid(void);
 const char *thread_name(void);
 
-void thread_exit(void) NO_RETURN;
+void thread_exit(int) NO_RETURN;
 void thread_yield(void);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
