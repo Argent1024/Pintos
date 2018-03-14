@@ -26,7 +26,7 @@ void exec_handler(uint32_t *args, struct intr_frame *f UNUSED) {
 void exit_handler(uint32_t *args, struct intr_frame *f) {
   f->eax = args[1];
   printf("%s: exit(%d)\n", thread_current()->name, args[1]);
-  thread_exit();
+  thread_exit(args[1]);
 }
 
 void practice_handler(uint32_t *args, struct intr_frame *f) {

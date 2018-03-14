@@ -7,10 +7,12 @@
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -215,18 +217,21 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
   init_thread(t, name, priority, thread_current()->recent_cpu);
   tid = t->tid = allocate_tid();
 
-/* Push child into father's list and remember father process
-    And init the return data for child.
-*/
+  /* Push child into father's list and remember father process
+      And init the return data for child.
+  */
+
 #ifdef USERPROG
+  enum intr_level old_level = intr_disable();
   struct thread *father = thread_current();
-  struct return_data rd;
-  list_push_back(father->child_return, rd->elem);
+  struct return_data *rd = malloc(sizeof(struct return_data));
+  rd->tid = t->tid;
+  list_push_back(&father->child_return, &rd->elem);
 
   t->father = father;
   old_level = intr_disable();
-  list_push_back(father->child_process, t->child_process_elem);
-  list_push_back(father->child_return, rd->elem);
+  list_push_back(&father->child_process, &t->child_process_elem);
+  list_push_back(&father->child_return, &rd->elem);
   intr_set_level(old_level);
 #endif
 
@@ -320,29 +325,40 @@ void thread_exit(int return_status) {
   struct list *l;
   struct return_data *rd;
   // when father is not null, meaning the father is still exisiting
-  old_level = intr_disable();
+  enum intr_level old_level = intr_disable();
   struct thread *father = child->father;
   if (father != NULL) {
-    list_remove(child->child_process_elem);
-    l = father->child_return;
+    // remove this thread inside father
+    list_remove(&child->child_process_elem);
+    l = &father->child_return;
 
-    for (e = list_begin(l), e != list_end(l), e = list_next(e)) {
+    // put the return status
+    for (e = list_begin(l); e != list_end(l); e = list_next(e)) {
       rd = list_entry(e, struct return_data, elem);
-      if (rd->tid = child->tid) {
+      if (rd->tid == child->tid) {
         rd->status = return_status;
         break;
       }
     }
-    if (father->status == THREAD_BLOCKED) thread_unblock(father);
+    if (child->call_father) thread_unblock(father);
   }
 
-  // remove child's father pointer
+  // remove children's father pointer
   struct thread *t;
   l = &child->child_process;
-  for (e = list_begin(l), e != list_end(l), e = list_next(e)) {
+  for (e = list_begin(l); e != list_end(l); e = list_next(e)) {
     t = list_entry(e, struct thread, child_process_elem);
     t->father = NULL;
   }
+
+  // free return_data in side self->child_return
+  l = &child->child_return;
+  while(!list_empty(l)) {
+   e = list_pop_front(l);
+   rd = list_entry(e, struct return_data, elem);
+   free(rd);
+  }
+
 
   intr_set_level(old_level);
   process_exit();

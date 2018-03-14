@@ -77,7 +77,7 @@ static void start_process(void *file_name_) {
 
   /* If load failed, quit. */
   palloc_free_page(file_name);
-  if (!success) thread_exit();
+  if (!success) thread_exit(-1);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -100,7 +100,19 @@ static void start_process(void *file_name_) {
    does nothing. */
 int process_wait(tid_t child_tid UNUSED) {
   sema_down(&temporary);
-  return 0;
+  int return_value;
+  struct return_data* rd;
+  struct list* l = &thread_current()->child_return;
+  struct list_elem* e;
+  for(e=list_begin(l); e!=list_end(l); e = list_next(e)) {
+    rd = list_entry(e, struct return_data, elem);
+  }
+  /* TODO 0. Check whether child is running 
+          1. Get child thread, change bool
+          2. Block self
+  */
+
+  return return_value;
 }
 
 /* Free the current process's resources. */

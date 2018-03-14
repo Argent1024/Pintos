@@ -110,6 +110,7 @@ struct thread {
   uint32_t *pagedir; /* Page directory. */
 
   // used for process wait
+  bool call_father;          /* call father if it is waiting */
   struct list child_return;  /* the place holding the return status of child*/
   struct list child_process; /* the child process of this process*/
   struct list_elem child_process_elem;
