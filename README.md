@@ -6,7 +6,7 @@ This repository contains code for CS162 group projects.
 
 TODO list:
 
-0. Syscalls
+0. The list child_return can't iterate successfully....
 
 1. Fix conflicts beetween user-proj and priority lock, schedule will
        crash if the thread is using virtual memory. See lock_release. 

@@ -122,7 +122,8 @@ struct thread {
 };
 
 struct return_data {
-  int status;  // 1 meaning is running
+  bool running; // 1 means the thread is running
+  int status; 
   tid_t tid;
   struct list_elem elem;
 };

@@ -11,6 +11,7 @@
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
@@ -100,18 +101,30 @@ static void start_process(void *file_name_) {
    does nothing. */
 int process_wait(tid_t child_tid UNUSED) {
   sema_down(&temporary);
-  int return_value;
-  struct return_data* rd;
-  struct list* l = &thread_current()->child_return;
-  struct list_elem* e;
-  for(e=list_begin(l); e!=list_end(l); e = list_next(e)) {
-    rd = list_entry(e, struct return_data, elem);
-  }
-  /* TODO 0. Check whether child is running 
-          1. Get child thread, change bool
-          2. Block self
-  */
+  int return_value = -1;
+  struct return_data *rd;
+  struct list *l = &thread_current()->child_return;
+  struct list_elem *e;
 
+  enum intr_level old_level = intr_disable();
+  for (e = list_begin(l); e != list_end(l); e = list_next(e)) {
+    rd = list_entry(e, struct return_data, elem);
+    if(rd->tid != child_tid) continue;
+
+    if (rd->running) {
+      thread_block();
+      // wait child to unblock
+      return_value = rd->status;
+      free(rd);
+      intr_set_level(old_level);
+      break;
+    } else {
+      return_value = rd->status;
+      free(rd);
+      intr_set_level(old_level);
+      break;
+    }
+  }
   return return_value;
 }
 

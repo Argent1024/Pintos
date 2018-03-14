@@ -13,6 +13,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 
+
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -226,6 +227,7 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
   struct thread *father = thread_current();
   struct return_data *rd = malloc(sizeof(struct return_data));
   rd->tid = t->tid;
+  rd->running = 1;
   list_push_back(&father->child_return, &rd->elem);
 
   t->father = father;
@@ -337,6 +339,7 @@ void thread_exit(int return_status) {
       rd = list_entry(e, struct return_data, elem);
       if (rd->tid == child->tid) {
         rd->status = return_status;
+        rd->running = 0;
         break;
       }
     }
