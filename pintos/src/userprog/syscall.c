@@ -13,6 +13,7 @@ void halt_handler(uint32_t *, struct intr_frame *);
 void exec_handler(uint32_t *, struct intr_frame *);
 void exit_handler(uint32_t *, struct intr_frame *);
 void practice_handler(uint32_t *, struct intr_frame *);
+void wait_handler(uint32_t *, struct intr_frame *);
 
 void halt_handler(uint32_t *args UNUSED, struct intr_frame *f UNUSED) {
   shutdown_power_off();
@@ -33,6 +34,11 @@ void practice_handler(uint32_t *args, struct intr_frame *f) {
   int t = get_user((uint8_t *)(args + 1));
   t += 1;
   f->eax = t;
+}
+
+void wait_handler(uint32_t *args, struct intr_frame *f) {
+  thread_yield();
+  f->eax = process_wait(args[1]);
 }
 
 void syscall_init(void) {
@@ -56,6 +62,8 @@ static void syscall_handler(struct intr_frame *f UNUSED) {
     halt_handler(args, f);
   else if (args[0] == SYS_EXEC)
     exec_handler(args, f);
+  else if (args[0] == SYS_WAIT)
+    wait_handler(args, f);
   else
     return;
 }

@@ -219,20 +219,16 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
   tid = t->tid = allocate_tid();
 
   /* Push child into father's list and remember father process
-      And init the return data for child.
-  */
-
+      And init the return data for child.*/
 #ifdef USERPROG
   enum intr_level old_level = intr_disable();
   struct thread *father = thread_current();
   struct return_data *rd = malloc(sizeof(struct return_data));
+  rd->thread = t;
   rd->tid = t->tid;
   rd->running = 1;
-  list_push_back(&father->child_return, &rd->elem);
-
   t->father = father;
-  old_level = intr_disable();
-  list_push_back(&father->child_process, &t->child_process_elem);
+  t->call_father = 0;
   list_push_back(&father->child_return, &rd->elem);
   intr_set_level(old_level);
 #endif
@@ -289,6 +285,7 @@ void thread_unblock(struct thread *t) {
   t->status = THREAD_READY;
   intr_set_level(old_level);
   */
+  t->status = THREAD_READY;
   add_ready_queue(t);
 }
 
@@ -320,7 +317,7 @@ tid_t thread_tid(void) { return thread_current()->tid; }
 void thread_exit(int return_status) {
   ASSERT(!intr_context());
   num_ready_threads -= 1;
-  //#ifdef USERPROG
+  #ifdef USERPROG
   struct thread *child = thread_current();
 
   struct list_elem *e;
@@ -330,10 +327,7 @@ void thread_exit(int return_status) {
   enum intr_level old_level = intr_disable();
   struct thread *father = child->father;
   if (father != NULL) {
-    // remove this thread inside father
-    list_remove(&child->child_process_elem);
     l = &father->child_return;
-
     // put the return status
     for (e = list_begin(l); e != list_end(l); e = list_next(e)) {
       rd = list_entry(e, struct return_data, elem);
@@ -345,27 +339,19 @@ void thread_exit(int return_status) {
     }
     if (child->call_father) thread_unblock(father);
   }
-
-  // remove children's father pointer
-  struct thread *t;
-  l = &child->child_process;
-  for (e = list_begin(l); e != list_end(l); e = list_next(e)) {
-    t = list_entry(e, struct thread, child_process_elem);
-    t->father = NULL;
-  }
-
+`
   // free return_data in side self->child_return
   l = &child->child_return;
   while(!list_empty(l)) {
    e = list_pop_front(l);
    rd = list_entry(e, struct return_data, elem);
+   rd->thread->father = NULL;
    free(rd);
   }
 
-
   intr_set_level(old_level);
   process_exit();
-  //#endif
+  #endif
 
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
@@ -539,7 +525,6 @@ static void init_thread(struct thread *t, const char *name, int priority,
 
 // init child process list
 #ifdef USERPROG
-  list_init(&t->child_process);
   list_init(&t->child_return);
 #endif
   old_level = intr_disable();

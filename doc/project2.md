@@ -13,9 +13,9 @@ Task2: Syscall
 	3. Create struct return_data saving the process id (thread id), return status.
 	4. Add list to store return_data inside struct thread
 	
-	When creating a child thread, also malloc a place to hold the return_data inside parents stack.
+	When creating a child thread, also malloc a place to hold the return_data inside parent's stack.
 	And when a thread is exiting, store the value into the return_data, free the malloc place and tell 
-	its children dont change return_data.
+	its children dont change return_data by making thread->father to null.
 
 Task3: File Syscall
 	TODO

@@ -6,12 +6,16 @@ This repository contains code for CS162 group projects.
 
 TODO list:
 
-0. The list child_return can't iterate successfully....
+0. Modify argument_pharser
 
-1. Fix conflicts beetween user-proj and priority lock, schedule will
+1. Let gcc don't complain about free(return_data)
+
+2. Check whether stack pointer is vaild
+
+INF. Fix conflicts beetween user-proj and priority lock, schedule will
        crash if the thread is using virtual memory. See lock_release. 
 
-2. Write design documents (after finish all the work?)....
+
 
 
 

@@ -112,8 +112,6 @@ struct thread {
   // used for process wait
   bool call_father;          /* call father if it is waiting */
   struct list child_return;  /* the place holding the return status of child*/
-  struct list child_process; /* the child process of this process*/
-  struct list_elem child_process_elem;
   struct thread *father; /*remember the father process, call it when exit*/
 #endif
 
@@ -123,6 +121,7 @@ struct thread {
 
 struct return_data {
   bool running; // 1 means the thread is running
+  struct thread* thread;
   int status; 
   tid_t tid;
   struct list_elem elem;

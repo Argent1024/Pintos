@@ -33,14 +33,14 @@ tid_t process_execute(const char *file_name) {
   char *fn_copy;
   tid_t tid;
 
-  sema_init(&temporary, 0);
+  // sema_init(&temporary, 0);
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page(0);
   if (fn_copy == NULL) return TID_ERROR;
   strlcpy(fn_copy, file_name, PGSIZE);
 
-  char thread_name[16];
+  char *thread_name = palloc_get_page(0);
   int i;
   for (i = 0; i < 16; i++) {
     if (file_name[i] == '\0') {
@@ -58,7 +58,13 @@ tid_t process_execute(const char *file_name) {
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create(thread_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR) palloc_free_page(fn_copy);
+  thread_block();
+  if (tid == TID_ERROR) {
+    palloc_free_page(fn_copy);
+    palloc_free_page(thread_name);
+  }
+  /* Let the child tell whether it can load or not*/
+  // TODO Change this maybe
   return tid;
 }
 
@@ -100,7 +106,7 @@ static void start_process(void *file_name_) {
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int process_wait(tid_t child_tid UNUSED) {
-  sema_down(&temporary);
+  // sema_down(&temporary);
   int return_value = -1;
   struct return_data *rd;
   struct list *l = &thread_current()->child_return;
@@ -109,22 +115,20 @@ int process_wait(tid_t child_tid UNUSED) {
   enum intr_level old_level = intr_disable();
   for (e = list_begin(l); e != list_end(l); e = list_next(e)) {
     rd = list_entry(e, struct return_data, elem);
-    if(rd->tid != child_tid) continue;
+    if (rd->tid != child_tid) continue;
 
     if (rd->running) {
+      rd->thread->call_father = 1;
       thread_block();
       // wait child to unblock
-      return_value = rd->status;
-      free(rd);
-      intr_set_level(old_level);
-      break;
-    } else {
-      return_value = rd->status;
-      free(rd);
-      intr_set_level(old_level);
-      break;
     }
+    break;
   }
+  // child should finish running here
+  list_remove(&rd->elem);
+  return_value = rd->status;
+  free(rd);
+  intr_set_level(old_level);
   return return_value;
 }
 
@@ -148,7 +152,7 @@ void process_exit(void) {
     pagedir_activate(NULL);
     pagedir_destroy(pd);
   }
-  sema_up(&temporary);
+  // sema_up(&temporary);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -563,6 +567,10 @@ static bool argument_phraser(const char *file_name, void **esp) {
       } else {
         return -1;
       }
+      
+      // emmmmm spend 4 hour to find this bug....
+      // So actually, unit test in fucking wonderful
+      if (file_name[i] == '\0') break;
     }
   }
 
@@ -586,6 +594,5 @@ static bool argument_phraser(const char *file_name, void **esp) {
 
   // useless return adress
   if (!push_pointer(esp, 0)) return -1;
-
   return 1;
 }
