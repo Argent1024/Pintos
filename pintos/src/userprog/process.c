@@ -63,7 +63,7 @@ tid_t process_execute(const char *file_name) {
     palloc_free_page(thread_name);
   }
   /* Let the child tell whether it can load or not*/
-  // TODO Change this maybe
+  // TODO 
   return tid;
 }
 
@@ -123,6 +123,10 @@ int process_wait(tid_t child_tid UNUSED) {
     }
     break;
   }
+  
+  // didn't find child_tid inside child_return
+  if(e==list_end(l)) return -1;
+
   // child should finish running here
   list_remove(&rd->elem);
   return_value = rd->status;
@@ -594,4 +598,12 @@ static bool argument_phraser(const char *file_name, void **esp) {
   // useless return adress
   if (!push_pointer(esp, 0)) return -1;
   return 1;
+}
+
+
+bool check_vaild_pointer(void* esp) {
+
+
+
+
 }

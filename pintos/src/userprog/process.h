@@ -13,4 +13,6 @@ bool push_pointer(void **, void *);
 bool push_string(void **esp, char *string);
 int get_user(uint8_t *uaddr);
 
+bool check_vaild_pointer(void* esp);
+
 #endif /* userprog/process.h */

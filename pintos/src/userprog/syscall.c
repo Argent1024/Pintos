@@ -7,7 +7,6 @@
 #include "threads/thread.h"
 
 static void syscall_handler(struct intr_frame *);
-static bool check_valid_pointer(uint32_t *esp);
 
 void halt_handler(uint32_t *, struct intr_frame *);
 void exec_handler(uint32_t *, struct intr_frame *);
@@ -43,10 +42,6 @@ void wait_handler(uint32_t *args, struct intr_frame *f) {
 
 void syscall_init(void) {
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
-}
-
-static bool check_valid_pointer(uint32_t *esp) {
-  return 1;  // esp <= (uint32_t)PHYS_BASE;
 }
 
 static void syscall_handler(struct intr_frame *f UNUSED) {
