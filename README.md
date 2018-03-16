@@ -6,13 +6,9 @@ This repository contains code for CS162 group projects.
 
 TODO list:
 
-
-
-
-
-0. Check whether stack pointer is vaild
-1. Change thread_block&unblock in process wait to a lock, also modify design document
-2. Implement Exec
+0. Implement file syscall
+1. Debug why free(rd) will explode if load_lock is not released...(maybe it's a huge bug)
+2. Check whether stack pointer is vaild
 3. Let gcc don't complain about free(return_data)
 4. Modify argument_pharser(rewrite it to make it looks better)
 
