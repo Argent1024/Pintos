@@ -31,6 +31,11 @@ struct lock {
 
 // help method in acquire
 void check_priority(struct lock *lock, int priority);
+
+/* Init a lock and give it to a thread, has the same effect
+   as the thread call lock_acquire() right after lock_init itself*/
+void lock_give_child(struct lock *, struct thread *);
+
 void lock_init(struct lock *);
 void lock_acquire(struct lock *);
 bool lock_try_acquire(struct lock *);

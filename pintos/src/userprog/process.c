@@ -63,7 +63,27 @@ tid_t process_execute(const char *file_name) {
     palloc_free_page(thread_name);
   }
   /* Let the child tell whether it can load or not*/
-  // TODO 
+
+  /* waiting for child's load status
+     ps: the for loop will always stop by having a rd->tid == tid */
+  enum intr_level old_level = intr_disable();
+  struct return_data *rd = NULL;
+  struct list_elem *e;
+  struct list *l = &thread_current()->child_return;
+  for (e = list_begin(l); e != list_end(l); e = list_next(e)) {
+    rd = list_entry(e, struct return_data, elem);
+    if (rd->tid != tid) continue;
+    lock_acquire(&rd->load_lock);
+
+    // TODO can't free rd without this line..?
+    lock_release(&rd->load_lock);
+    break;
+  }
+  intr_set_level(old_level);
+
+  // child finishing loading procedure, check load success or not
+  // rd will never be null
+  if (rd == NULL || rd->load_status != 1) return -1;
   return tid;
 }
 
@@ -83,7 +103,9 @@ static void start_process(void *file_name_) {
 
   /* If load failed, quit. */
   palloc_free_page(file_name);
+  thread_current()->report->load_status = success;
   if (!success) thread_exit(-1);
+  lock_release(&thread_current()->report->load_lock);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -115,17 +137,14 @@ int process_wait(tid_t child_tid UNUSED) {
   for (e = list_begin(l); e != list_end(l); e = list_next(e)) {
     rd = list_entry(e, struct return_data, elem);
     if (rd->tid != child_tid) continue;
-
-    if (rd->running) {
-      rd->thread->call_father = 1;
-      thread_block();
-      // wait child to unblock
-    }
+    lock_acquire(&rd->return_lock);
     break;
   }
-  
   // didn't find child_tid inside child_return
-  if(e==list_end(l)) return -1;
+  if (e == list_end(l)) {
+    intr_set_level(old_level);
+    return -1;
+  }
 
   // child should finish running here
   list_remove(&rd->elem);
@@ -513,6 +532,7 @@ bool put_user(uint8_t *udst, uint8_t byte) {
 return -1 if error*/
 bool push_string(void **esp, char *string) {
   int size = (int)strlen(string);
+  check_vaild_pointer((void *)((int)*esp - size), *esp - 1);
   for (; size >= 0; size--) {
     *esp -= 1;
     if (!put_user(*esp, (uint8_t)string[size])) {
@@ -524,6 +544,7 @@ bool push_string(void **esp, char *string) {
 
 // fucking stupid..
 bool push_pointer(void **esp, void *pointer) {
+  check_vaild_pointer((void *)((int)*esp - 4), *esp - 1);
   int p = (int)pointer;
   *esp -= 1;
   if (!put_user(*esp, p >> 24 & 0x000000ff)) return -1;
@@ -570,7 +591,7 @@ static bool argument_phraser(const char *file_name, void **esp) {
       } else {
         return -1;
       }
-      
+
       // emmmmm spend 4 hour to find this bug....
       // So actually, unit test in fucking wonderful
       if (file_name[i] == '\0') break;
@@ -600,10 +621,12 @@ static bool argument_phraser(const char *file_name, void **esp) {
   return 1;
 }
 
-
-bool check_vaild_pointer(void* esp) {
-
-
-
-
+void check_vaild_pointer(void *pointer1, void *pointer2) {
+  // TODO ..check 0..? emmmm..?
+  if (is_user_vaddr(pointer2) && ((uint32_t)pointer1 <= (uint32_t)pointer2)) {
+    return;
+  } else {
+    printf("%s: exit(%d)\n", thread_current()->name, -1);
+    thread_exit(-1);
+  };
 }

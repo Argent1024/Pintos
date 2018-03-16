@@ -13,7 +13,6 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 
-
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -226,9 +225,13 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
   struct return_data *rd = malloc(sizeof(struct return_data));
   rd->thread = t;
   rd->tid = t->tid;
-  rd->running = 1;
+
+  // using lock to synchronize father and child
+  lock_give_child(&rd->return_lock, t);
+  lock_give_child(&rd->load_lock, t);
+
+  t->report = rd;
   t->father = father;
-  t->call_father = 0;
   list_push_back(&father->child_return, &rd->elem);
   intr_set_level(old_level);
 #endif
@@ -317,41 +320,35 @@ tid_t thread_tid(void) { return thread_current()->tid; }
 void thread_exit(int return_status) {
   ASSERT(!intr_context());
   num_ready_threads -= 1;
-  #ifdef USERPROG
+#ifdef USERPROG
   struct thread *child = thread_current();
 
   struct list_elem *e;
   struct list *l;
-  struct return_data *rd;
+  struct return_data *rd = child->report;
   // when father is not null, meaning the father is still exisiting
-  enum intr_level old_level = intr_disable();
+
   struct thread *father = child->father;
   if (father != NULL) {
-    l = &father->child_return;
-    // put the return status
-    for (e = list_begin(l); e != list_end(l); e = list_next(e)) {
-      rd = list_entry(e, struct return_data, elem);
-      if (rd->tid == child->tid) {
-        rd->status = return_status;
-        rd->running = 0;
-        break;
-      }
-    }
-    if (child->call_father) thread_unblock(father);
-  }
-  
-  // free return_data in side self->child_return
-  l = &child->child_return;
-  while(!list_empty(l)) {
-   e = list_pop_front(l);
-   rd = list_entry(e, struct return_data, elem);
-   rd->thread->father = NULL;
-   free(rd);
+    /* put the return data*/
+    rd->status = return_status;
+    if (lock_held_by_current_thread(&rd->load_lock))
+      lock_release(&rd->load_lock);
+    lock_release(&rd->return_lock);
   }
 
+  // free return_data in side self->child_return
+  enum intr_level old_level = intr_disable();
+  l = &child->child_return;
+  while (!list_empty(l)) {
+    e = list_pop_front(l);
+    rd = list_entry(e, struct return_data, elem);
+    rd->thread->father = NULL;
+    free(rd);
+  }
   intr_set_level(old_level);
   process_exit();
-  #endif
+#endif
 
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us

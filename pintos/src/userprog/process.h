@@ -13,6 +13,7 @@ bool push_pointer(void **, void *);
 bool push_string(void **esp, char *string);
 int get_user(uint8_t *uaddr);
 
-bool check_vaild_pointer(void* esp);
+/* helper function to check whether pointer is valid, p1 should < p2*/
+void check_vaild_pointer(void*p1 ,void*p2);
 
 #endif /* userprog/process.h */

@@ -109,10 +109,12 @@ struct thread {
   /* Owned by userprog/process.c. */
   uint32_t *pagedir; /* Page directory. */
 
+  // place where to put load&return status
+  struct return_data* report;
+  
   // used for process wait
-  bool call_father;          /* call father if it is waiting */
-  struct list child_return;  /* the place holding the return status of child*/
-  struct thread *father; /*remember the father process, call it when exit*/
+  struct list child_return; /* the place holding the return status of child*/
+  struct thread *father;    /*remember the father process, call it when exit*/
 #endif
 
   /* Owned by thread.c. */
@@ -120,9 +122,17 @@ struct thread {
 };
 
 struct return_data {
-  bool running; // 1 means the thread is running
-  struct thread* thread;
-  int status; 
+  /* Locks used for synchronize father and child in process_wait&process_execute
+     When a thread is created it get these locks and release them when finishing
+     load or exiting. 
+     return_lock should be released in thread_exit
+     load_lock should be released in start_process
+  */
+  struct lock return_lock;  
+  struct lock load_lock;
+  bool load_status;  // Store whether the process load successful or not
+  struct thread *thread;
+  int status;       // the return status
   tid_t tid;
   struct list_elem elem;
 };

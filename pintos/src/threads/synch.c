@@ -370,3 +370,21 @@ struct semaphore *cond_wake_up(struct condition *cond) {
   intr_set_level(old_level);
   return &list_entry(ans, struct semaphore_elem, elem)->semaphore;
 }
+
+void lock_give_child(struct lock *lock, struct thread *thread) {
+  ASSERT(lock != NULL);
+  ASSERT(!intr_context());
+  ASSERT(!lock_held_by_current_thread(lock));
+
+  lock_init(lock);
+  sema_down(&lock->semaphore);
+  lock->holder = thread;
+
+  // init lock's priority
+  lock->donater_priority = thread->priority;
+  lock->semaphore.priority = lock->donater_priority;
+  // push self into holder's locks list
+  enum intr_level old_level = intr_disable();
+  list_push_back(&thread->locks, &lock->elem);
+  intr_set_level(old_level);
+}
