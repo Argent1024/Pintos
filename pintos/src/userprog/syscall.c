@@ -14,33 +14,51 @@ void exit_handler(uint32_t *, struct intr_frame *);
 void practice_handler(uint32_t *, struct intr_frame *);
 void wait_handler(uint32_t *, struct intr_frame *);
 
+// file syscall
+void create_handler(uint32_t *, struct intr_frame *);
+void remove_handler(uint32_t *, struct intr_frame *);
+
 void halt_handler(uint32_t *args UNUSED, struct intr_frame *f UNUSED) {
   shutdown_power_off();
 }
 
 void exec_handler(uint32_t *args, struct intr_frame *f UNUSED) {
-  check_vaild_pointer(f->esp, f->esp+4);
+  check_vaild_pointer(f->esp, f->esp + 4);
   tid_t p = process_execute((char *)args[1]);
   f->eax = p;
 }
 
 void exit_handler(uint32_t *args, struct intr_frame *f) {
-  check_vaild_pointer(f->esp, f->esp+4);
+  check_vaild_pointer(f->esp, f->esp + 4);
   f->eax = args[1];
   printf("%s: exit(%d)\n", thread_current()->name, args[1]);
   thread_exit(args[1]);
 }
 
 void practice_handler(uint32_t *args, struct intr_frame *f) {
-  check_vaild_pointer(f->esp, f->esp+4);
+  check_vaild_pointer(f->esp, f->esp + 4);
   int t = get_user((uint8_t *)(args + 1));
   t += 1;
   f->eax = t;
 }
 
 void wait_handler(uint32_t *args, struct intr_frame *f) {
-  check_vaild_pointer(f->esp, f->esp+4);
+  check_vaild_pointer(f->esp, f->esp + 4);
   f->eax = process_wait(args[1]);
+}
+
+void create_handler(uint32_t *args, struct intr_frame *f) {
+  //bool create (const char *file, unsigned initial size)
+  char* file = args[1];
+  off_t size = args[2];
+  f->eax = filesys_create(file, size);
+}
+
+void remove_handler(uint32_t *args, struct intr_frame *f){
+  //bool remove (const char *file) 
+  bool ans;
+  char* file = args[1];
+  f->eax = filesys_remove(file);
 }
 
 void syscall_init(void) {
@@ -53,8 +71,6 @@ static void syscall_handler(struct intr_frame *f UNUSED) {
   // printf("System call number: %d\n", args[0]);
   if (args[0] == SYS_EXIT)
     exit_handler(args, f);
-  else if (args[0] == SYS_WRITE)
-    printf("%s", (char *)args[2]);
   else if (args[0] == SYS_PRACTICE)
     practice_handler(args, f);
   else if (args[0] == SYS_HALT)
@@ -63,6 +79,24 @@ static void syscall_handler(struct intr_frame *f UNUSED) {
     exec_handler(args, f);
   else if (args[0] == SYS_WAIT)
     wait_handler(args, f);
+  else if (args[0] == SYS_CREATE)
+    create_handler(args, f);
+  else if (args[0] == SYS_REMOVE)
+    remove_handler(args, f);
+  else if (args[0] == SYS_OPEN)
+    open_handler(args, f);
+  else if (args[0] == SYS_FILESIZE)
+    return;
+  else if (args[0] == SYS_READ)
+    return;
+  else if (args[0] == SYS_WRITE)
+    printf("%s", (char *)args[2]);
+  else if (args[0] == SYS_SEEK)
+    return;
+  else if (args[0] == SYS_TELL)
+    return;
+  else if (args[0] == SYS_CLOSE)
+    return;
   else
     return;
 }
