@@ -99,6 +99,10 @@ void create_handler(uint32_t *args, struct intr_frame *f) {
   // bool create (const char *file, unsigned initial size)
   char *file = args[1];
   off_t size = args[2];
+  if (file == NULL) {
+    f->eax = -1;
+    return;
+  }
   f->eax = filesys_create(file, size);
 }
 
@@ -106,13 +110,21 @@ void remove_handler(uint32_t *args, struct intr_frame *f) {
   // bool remove (const char *file)
   bool ans;
   char *file = args[1];
+  if (file == NULL) {
+    f->eax = -1;
+    return;
+  }
   f->eax = filesys_remove(file);
 }
 
 void open_handler(uint32_t *args, struct intr_frame *f UNUSED) {
   // int open (const char *file)
-  char *name = args[1];
-  f->eax = fileHandle_create(name);
+  char *file = args[1];
+  if (file == NULL) {
+    f->eax = -1;
+    return;
+  }
+  f->eax = fileHandle_create(file);
 }
 
 void filesize_handler(uint32_t *args, struct intr_frame *f) {
