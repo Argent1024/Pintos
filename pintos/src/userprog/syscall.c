@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "devices/shutdown.h"
+#include "devices/intq.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "process.h"
@@ -24,6 +25,9 @@ void fileHandle_remove(int fd);
 
 static void syscall_handler(struct intr_frame *);
 
+// exit the process
+void stupid_user_program();
+
 void halt_handler(uint32_t *, struct intr_frame *);
 void exec_handler(uint32_t *, struct intr_frame *);
 void exit_handler(uint32_t *, struct intr_frame *);
@@ -37,6 +41,11 @@ void remove_handler(uint32_t *, struct intr_frame *);
 void filesize_handler(uint32_t *, struct intr_frame *);
 void read_handler(uint32_t *, struct intr_frame *);
 void write_handler(uint32_t *, struct intr_frame *);
+
+void stupid_user_program() {
+  printf("%s: exit(%d)\n", thread_current()->name, -1);
+  thread_exit(-1);
+}
 
 // helper mehods for matain file table
 int fileHandle_create(char *name) {
@@ -97,13 +106,10 @@ void wait_handler(uint32_t *args, struct intr_frame *f) {
 
 void create_handler(uint32_t *args, struct intr_frame *f) {
   // bool create (const char *file, unsigned initial size)
-  char *file = args[1];
+  char *name = args[1];
   off_t size = args[2];
-  if (file == NULL) {
-    f->eax = -1;
-    return;
-  }
-  f->eax = filesys_create(file, size);
+  if (name == NULL) stupid_user_program();
+  f->eax = filesys_create(name, size);
 }
 
 void remove_handler(uint32_t *args, struct intr_frame *f) {
@@ -139,26 +145,36 @@ void filesize_handler(uint32_t *args, struct intr_frame *f) {
 
 void read_handler(uint32_t *args, struct intr_frame *f) {
   // int read (int fd, void *buffer, unsigned size)
-  struct file *file = fileHandle_find(args[1]);
-  void *buffer = args[2];
+  int fd = args[1];
+  char *buffer = (char*)args[2];
   unsigned int size = args[3];
-  f->eax = file_read(file, buffer, size);
+  if (fd == 0) {
+    buffer[0] = input_getc();
+    f->eax = 1;
+  }
+  else if (fd == 1) {
+    return;
+  } else {
+    struct file *file = fileHandle_find(fd);
+    f->eax = file_read(file, buffer, size);
+  }
 }
 
 void write_handler(uint32_t *args, struct intr_frame *f) {
   // int write (int fd, const void *buffer, unsigned size)
   int fd = args[1];
-  void *buffer = args[2];
+  char *buffer =(char*)args[2];
   uint32_t size = (uint32_t)args[3];
 
-  if (size >= 128) {
-    // deny writing size bigger than 128
+  if (size >= 128 && fd == 1) {
+    // deny writing to console size bigger than 128
     f->eax = 0;
     return;
   }
+
   if (fd == 0) {
     return;
-  } else if (fd == 1) {
+  } if (fd == 1) {
     // write to console
     putbuf(buffer, size);
     f->eax = size;
