@@ -151,12 +151,18 @@ page_fault (struct intr_frame *f)
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
-     which fault_addr refers. */
+     which fault_addr refers. 
   printf ("Page fault at %p: %s error %s page in %s context.\n",
           fault_addr,
           not_present ? "not present" : "rights violation",
           write ? "writing" : "reading",
-          user ? "user" : "kernel");
+          user ? "user" : "kernel");*/
+
+  
+  // TODO edit page fault caused by syscall
+  f->eip = f->eax;
+  f->eax = 0xffffffff;
+  f->cs = SEL_UCSEG;
   kill (f);
 }
 

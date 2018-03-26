@@ -148,6 +148,8 @@ void read_handler(uint32_t *args, struct intr_frame *f) {
   int fd = args[1];
   char *buffer = (char*)args[2];
   unsigned int size = args[3];
+
+  check_vaild_pointer(buffer, buffer);
   if (fd == 0) {
     buffer[0] = input_getc();
     f->eax = 1;

@@ -626,7 +626,6 @@ void check_vaild_pointer(void *pointer1, void *pointer2) {
   if (is_user_vaddr(pointer2) && ((uint32_t)pointer1 <= (uint32_t)pointer2)) {
     return;
   } else {
-    printf("%s: exit(%d)\n", thread_current()->name, -1);
-    thread_exit(-1);
-  };
+    stupid_user_program();
+  }
 }
